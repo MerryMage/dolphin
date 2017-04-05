@@ -245,6 +245,9 @@ private:
     bool gpu_texture_decoding;
   };
   BackupConfig backup_config = {};
+
+  TCacheEntryBase* SearchTextureCache(const u32 stage, const u32 address, u64 base_hash,
+                                      u64 full_hash, u32 full_format, u32 palette_size);
 };
 
 extern std::unique_ptr<TextureCacheBase> g_texture_cache;

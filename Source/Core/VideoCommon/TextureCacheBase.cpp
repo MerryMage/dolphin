@@ -488,6 +488,7 @@ void TextureCacheBase::UnbindTextures()
 
 TextureCacheBase::TCacheEntryBase* TextureCacheBase::Load(const u32 stage)
 {
+  printf("TCBLOAD %d\n", stage);
   const FourTexUnits& tex = bpmem.tex[stage >> 2];
   const u32 id = stage & 3;
   const u32 address = (tex.texImage3[id].image_base /* & 0x1FFFFF*/) << 5;
@@ -581,158 +582,10 @@ TextureCacheBase::TCacheEntryBase* TextureCacheBase::Load(const u32 stage)
     full_hash = base_hash;
   }
 
-  // Search the texture cache for textures by address
-  //
-  // Find all texture cache entries for the current texture address, and decide whether to use one
-  // of
-  // them, or to create a new one
-  //
-  // In most cases, the fastest way is to use only one texture cache entry for the same address.
-  // Usually,
-  // when a texture changes, the old version of the texture is unlikely to be used again. If there
-  // were
-  // new cache entries created for normal texture updates, there would be a slowdown due to a huge
-  // amount
-  // of unused cache entries. Also thanks to texture pooling, overwriting an existing cache entry is
-  // faster than creating a new one from scratch.
-  //
-  // Some games use the same address for different textures though. If the same cache entry was used
-  // in
-  // this case, it would be constantly overwritten, and effectively there wouldn't be any caching
-  // for
-  // those textures. Examples for this are Metroid Prime and Castlevania 3. Metroid Prime has
-  // multiple
-  // sets of fonts on each other stored in a single texture and uses the palette to make different
-  // characters visible or invisible. In Castlevania 3 some textures are used for 2 different things
-  // or
-  // at least in 2 different ways(size 1024x1024 vs 1024x256).
-  //
-  // To determine whether to use multiple cache entries or a single entry, use the following
-  // heuristic:
-  // If the same texture address is used several times during the same frame, assume the address is
-  // used
-  // for different purposes and allow creating an additional cache entry. If there's at least one
-  // entry
-  // that hasn't been used for the same frame, then overwrite it, in order to keep the cache as
-  // small as
-  // possible. If the current texture is found in the cache, use that entry.
-  //
-  // For efb copies, the entry created in CopyRenderTargetToTexture always has to be used, or else
-  // it was
-  // done in vain.
-  auto iter_range = textures_by_address.equal_range(address);
-  TexAddrCache::iterator iter = iter_range.first;
-  TexAddrCache::iterator oldest_entry = iter;
-  int temp_frameCount = 0x7fffffff;
-  TexAddrCache::iterator unconverted_copy = textures_by_address.end();
-
-  while (iter != iter_range.second)
-  {
-    TCacheEntryBase* entry = iter->second;
-    // Do not load strided EFB copies, they are not meant to be used directly
-    if (entry->IsEfbCopy() && entry->native_width == nativeW && entry->native_height == nativeH &&
-        entry->memory_stride == entry->BytesPerRow())
-    {
-      // EFB copies have slightly different rules as EFB copy formats have different
-      // meanings from texture formats.
-      if ((base_hash == entry->hash &&
-           (!isPaletteTexture || g_Config.backend_info.bSupportsPaletteConversion)) ||
-          IsPlayingBackFifologWithBrokenEFBCopies)
-      {
-        // TODO: We should check format/width/height/levels for EFB copies. Checking
-        // format is complicated because EFB copy formats don't exactly match
-        // texture formats. I'm not sure what effect checking width/height/levels
-        // would have.
-        if (!isPaletteTexture || !g_Config.backend_info.bSupportsPaletteConversion)
-          return ReturnEntry(stage, entry);
-
-        // Note that we found an unconverted EFB copy, then continue.  We'll
-        // perform the conversion later.  Currently, we only convert EFB copies to
-        // palette textures; we could do other conversions if it proved to be
-        // beneficial.
-        unconverted_copy = iter;
-      }
-      else
-      {
-        // Aggressively prune EFB copies: if it isn't useful here, it will probably
-        // never be useful again.  It's theoretically possible for a game to do
-        // something weird where the copy could become useful in the future, but in
-        // practice it doesn't happen.
-        iter = InvalidateTexture(iter);
-        continue;
-      }
-    }
-    else
-    {
-      // For normal textures, all texture parameters need to match
-      if (entry->hash == full_hash && entry->format == full_format &&
-          entry->native_levels >= tex_levels && entry->native_width == nativeW &&
-          entry->native_height == nativeH)
-      {
-        entry = DoPartialTextureUpdates(iter->second, &texMem[tlutaddr], tlutfmt);
-
-        return ReturnEntry(stage, entry);
-      }
-    }
-
-    // Find the texture which hasn't been used for the longest time. Count paletted
-    // textures as the same texture here, when the texture itself is the same. This
-    // improves the performance a lot in some games that use paletted textures.
-    // Example: Sonic the Fighters (inside Sonic Gems Collection)
-    // Skip EFB copies here, so they can be used for partial texture updates
-    if (entry->frameCount != FRAMECOUNT_INVALID && entry->frameCount < temp_frameCount &&
-        !entry->IsEfbCopy() && !(isPaletteTexture && entry->base_hash == base_hash))
-    {
-      temp_frameCount = entry->frameCount;
-      oldest_entry = iter;
-    }
-    ++iter;
-  }
-
-  if (unconverted_copy != textures_by_address.end())
-  {
-    TCacheEntryBase* decoded_entry =
-        ApplyPaletteToEntry(unconverted_copy->second, &texMem[tlutaddr], tlutfmt);
-
-    if (decoded_entry)
-    {
-      return ReturnEntry(stage, decoded_entry);
-    }
-  }
-
-  // Search the texture cache for normal textures by hash
-  //
-  // If the texture was fully hashed, the address does not need to match. Identical duplicate
-  // textures cause unnecessary slowdowns
-  // Example: Tales of Symphonia (GC) uses over 500 small textures in menus, but only around 70
-  // different ones
-  if (g_ActiveConfig.iSafeTextureCache_ColorSamples == 0 ||
-      std::max(texture_size, palette_size) <=
-          (u32)g_ActiveConfig.iSafeTextureCache_ColorSamples * 8)
-  {
-    auto hash_range = textures_by_hash.equal_range(full_hash);
-    TexHashCache::iterator hash_iter = hash_range.first;
-    while (hash_iter != hash_range.second)
-    {
-      TCacheEntryBase* entry = hash_iter->second;
-      // All parameters, except the address, need to match here
-      if (entry->format == full_format && entry->native_levels >= tex_levels &&
-          entry->native_width == nativeW && entry->native_height == nativeH)
-      {
-        entry = DoPartialTextureUpdates(hash_iter->second, &texMem[tlutaddr], tlutfmt);
-
-        return ReturnEntry(stage, entry);
-      }
-      ++hash_iter;
-    }
-  }
-
-  // If at least one entry was not used for the same frame, overwrite the oldest one
-  if (temp_frameCount != 0x7fffffff)
-  {
-    // pool this texture and make a new one later
-    InvalidateTexture(oldest_entry);
-  }
+  TCacheEntryBase* ret =
+      SearchTextureCache(stage, address, base_hash, full_hash, full_format, palette_size);
+  if (ret)
+    return ret;
 
   std::shared_ptr<HiresTexture> hires_tex;
   if (g_ActiveConfig.bHiresTextures)
@@ -810,7 +663,7 @@ TextureCacheBase::TCacheEntryBase* TextureCacheBase::Load(const u32 stage)
     entry->Load(temp, width, height, expandedWidth, 0);
   }
 
-  iter = textures_by_address.emplace(address, entry);
+  auto iter = textures_by_address.emplace(address, entry);
   if (g_ActiveConfig.iSafeTextureCache_ColorSamples == 0 ||
       std::max(texture_size, palette_size) <=
           (u32)g_ActiveConfig.iSafeTextureCache_ColorSamples * 8)
@@ -896,6 +749,190 @@ TextureCacheBase::TCacheEntryBase* TextureCacheBase::Load(const u32 stage)
   entry = DoPartialTextureUpdates(iter->second, &texMem[tlutaddr], tlutfmt);
 
   return ReturnEntry(stage, entry);
+}
+
+TextureCacheBase::TCacheEntryBase*
+TextureCacheBase::SearchTextureCache(const u32 stage, const u32 address, u64 base_hash,
+                                     u64 full_hash, u32 full_format, u32 palette_size)
+{
+  const FourTexUnits& tex = bpmem.tex[stage >> 2];
+  const u32 id = stage & 3;
+  const u32 tlutaddr = tex.texTlut[id].tmem_offset << 9;
+  const u32 tlutfmt = tex.texTlut[id].tlut_format;
+  const int texformat = tex.texImage0[id].format;
+  const unsigned int nativeW = tex.texImage0[id].width + 1;
+  const unsigned int nativeH = tex.texImage0[id].height + 1;
+
+  const bool isPaletteTexture =
+      (texformat == GX_TF_C4 || texformat == GX_TF_C8 || texformat == GX_TF_C14X2);
+
+  const unsigned int bsw = TexDecoder_GetBlockWidthInTexels(texformat);
+  const unsigned int bsh = TexDecoder_GetBlockHeightInTexels(texformat);
+  unsigned int expandedWidth = Common::AlignUp(nativeW, bsw);
+  unsigned int expandedHeight = Common::AlignUp(nativeH, bsh);
+  const u32 texture_size =
+      TexDecoder_GetTextureSizeInBytes(expandedWidth, expandedHeight, texformat);
+
+  const bool use_mipmaps = SamplerCommon::AreBpTexMode0MipmapsEnabled(tex.texMode0[id]);
+  u32 tex_levels = use_mipmaps ? ((tex.texMode1[id].max_lod + 0xf) / 0x10 + 1) : 1;
+  tex_levels = std::min<u32>(IntLog2(std::max(nativeW, nativeH)) + 1, tex_levels);
+
+  // Search the texture cache for textures by address
+  //
+  // Find all texture cache entries for the current texture address, and decide whether to use one
+  // of
+  // them, or to create a new one
+  //
+  // In most cases, the fastest way is to use only one texture cache entry for the same address.
+  // Usually,
+  // when a texture changes, the old version of the texture is unlikely to be used again. If there
+  // were
+  // new cache entries created for normal texture updates, there would be a slowdown due to a huge
+  // amount
+  // of unused cache entries. Also thanks to texture pooling, overwriting an existing cache entry is
+  // faster than creating a new one from scratch.
+  //
+  // Some games use the same address for different textures though. If the same cache entry was used
+  // in
+  // this case, it would be constantly overwritten, and effectively there wouldn't be any caching
+  // for
+  // those textures. Examples for this are Metroid Prime and Castlevania 3. Metroid Prime has
+  // multiple
+  // sets of fonts on each other stored in a single texture and uses the palette to make different
+  // characters visible or invisible. In Castlevania 3 some textures are used for 2 different things
+  // or
+  // at least in 2 different ways(size 1024x1024 vs 1024x256).
+  //
+  // To determine whether to use multiple cache entries or a single entry, use the following
+  // heuristic:
+  // If the same texture address is used several times during the same frame, assume the address is
+  // used
+  // for different purposes and allow creating an additional cache entry. If there's at least one
+  // entry
+  // that hasn't been used for the same frame, then overwrite it, in order to keep the cache as
+  // small as
+  // possible. If the current texture is found in the cache, use that entry.
+  //
+  // For efb copies, the entry created in CopyRenderTargetToTexture always has to be used, or else
+  // it was
+  // done in vain.
+  auto iter_range = textures_by_address.equal_range(address);
+  auto iter = iter_range.first;
+  auto oldest_entry = iter;
+  int temp_frameCount = 0x7fffffff;
+  auto unconverted_copy = textures_by_address.end();
+
+  while (iter != iter_range.second)
+  {
+    TCacheEntryBase* entry = iter->second;
+    // Do not load strided EFB copies, they are not meant to be used directly
+    if (entry->IsEfbCopy() && entry->native_width == nativeW && entry->native_height == nativeH &&
+        entry->memory_stride == entry->BytesPerRow())
+    {
+      // EFB copies have slightly different rules as EFB copy formats have different
+      // meanings from texture formats.
+      if ((base_hash == entry->hash &&
+           (!isPaletteTexture || g_Config.backend_info.bSupportsPaletteConversion)) ||
+          IsPlayingBackFifologWithBrokenEFBCopies)
+      {
+        // TODO: We should check format/width/height/levels for EFB copies. Checking
+        // format is complicated because EFB copy formats don't exactly match
+        // texture formats. I'm not sure what effect checking width/height/levels
+        // would have.
+        if (!isPaletteTexture || !g_Config.backend_info.bSupportsPaletteConversion)
+        {
+          return ReturnEntry(stage, entry);
+        }
+
+        // Note that we found an unconverted EFB copy, then continue.  We'll
+        // perform the conversion later.  Currently, we only convert EFB copies to
+        // palette textures; we could do other conversions if it proved to be
+        // beneficial.
+        unconverted_copy = iter;
+      }
+      else
+      {
+        // Aggressively prune EFB copies: if it isn't useful here, it will probably
+        // never be useful again.  It's theoretically possible for a game to do
+        // something weird where the copy could become useful in the future, but in
+        // practice it doesn't happen.
+        iter = InvalidateTexture(iter);
+        continue;
+      }
+    }
+    else
+    {
+      // For normal textures, all texture parameters need to match
+      if (entry->hash == full_hash && entry->format == full_format &&
+          entry->native_levels >= tex_levels && entry->native_width == nativeW &&
+          entry->native_height == nativeH)
+      {
+        entry = DoPartialTextureUpdates(iter->second, &texMem[tlutaddr], tlutfmt);
+
+        return ReturnEntry(stage, entry);
+      }
+    }
+
+    // Find the texture which hasn't been used for the longest time. Count paletted
+    // textures as the same texture here, when the texture itself is the same. This
+    // improves the performance a lot in some games that use paletted textures.
+    // Example: Sonic the Fighters (inside Sonic Gems Collection)
+    // Skip EFB copies here, so they can be used for partial texture updates
+    if (entry->frameCount != FRAMECOUNT_INVALID && entry->frameCount < temp_frameCount &&
+        !entry->IsEfbCopy() && !(isPaletteTexture && entry->base_hash == base_hash))
+    {
+      temp_frameCount = entry->frameCount;
+      oldest_entry = iter;
+    }
+    ++iter;
+  }
+
+  if (unconverted_copy != textures_by_address.end())
+  {
+    TCacheEntryBase* decoded_entry =
+        ApplyPaletteToEntry(unconverted_copy->second, &texMem[tlutaddr], tlutfmt);
+
+    if (decoded_entry)
+    {
+      return ReturnEntry(stage, decoded_entry);
+    }
+  }
+
+  // Search the texture cache for normal textures by hash
+  //
+  // If the texture was fully hashed, the address does not need to match. Identical duplicate
+  // textures cause unnecessary slowdowns
+  // Example: Tales of Symphonia (GC) uses over 500 small textures in menus, but only around 70
+  // different ones
+  if (g_ActiveConfig.iSafeTextureCache_ColorSamples == 0 ||
+      std::max(texture_size, palette_size) <=
+          (u32)g_ActiveConfig.iSafeTextureCache_ColorSamples * 8)
+  {
+    auto hash_range = textures_by_hash.equal_range(full_hash);
+    auto hash_iter = hash_range.first;
+    while (hash_iter != hash_range.second)
+    {
+      TCacheEntryBase* entry = hash_iter->second;
+      // All parameters, except the address, need to match here
+      if (entry->format == full_format && entry->native_levels >= tex_levels &&
+          entry->native_width == nativeW && entry->native_height == nativeH)
+      {
+        entry = DoPartialTextureUpdates(hash_iter->second, &texMem[tlutaddr], tlutfmt);
+
+        return ReturnEntry(stage, entry);
+      }
+      ++hash_iter;
+    }
+  }
+
+  // If at least one entry was not used for the same frame, overwrite the oldest one
+  if (temp_frameCount != 0x7fffffff)
+  {
+    // pool this texture and make a new one later
+    InvalidateTexture(oldest_entry);
+  }
+
+  return nullptr;
 }
 
 void TextureCacheBase::CopyRenderTargetToTexture(u32 dstAddr, unsigned int dstFormat, u32 dstStride,
