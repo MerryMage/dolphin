@@ -246,8 +246,13 @@ private:
   };
   BackupConfig backup_config = {};
 
-  TCacheEntryBase* SearchTextureCache(const u32 stage, const u32 address, u64 base_hash,
-                                      u64 full_hash, u32 full_format, u32 palette_size);
+  enum class SearchTextureResultType;
+  using SearchResult = std::pair<TCacheEntryBase*, SearchTextureResultType>;
+  SearchResult SearchTextureCacheByAddress(const u32 address, u64 base_hash, u64 full_hash,
+                                           u32 full_format, u32 tex_levels, u32 nativeW,
+                                           u32 nativeH, bool isPaletteTexture);
+  SearchResult SearchTextureCacheByHash(u64 full_hash, u32 full_format, u32 tex_levels, u32 nativeW,
+                                        u32 nativeH);
 };
 
 extern std::unique_ptr<TextureCacheBase> g_texture_cache;

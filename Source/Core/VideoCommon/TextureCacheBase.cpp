@@ -41,6 +41,14 @@ static const int TEXTURE_KILL_THRESHOLD = 64;
 static const int TEXTURE_POOL_KILL_THRESHOLD = 3;
 static const int FRAMECOUNT_INVALID = 0;
 
+enum class TextureCacheBase::SearchTextureResultType
+{
+  None,
+  EfbCopy,
+  UnconvertedEfbCopy,
+  NormalTexture,
+};
+
 std::unique_ptr<TextureCacheBase> g_texture_cache;
 
 TextureCacheBase::TCacheEntryBase::~TCacheEntryBase()
@@ -582,10 +590,50 @@ TextureCacheBase::TCacheEntryBase* TextureCacheBase::Load(const u32 stage)
     full_hash = base_hash;
   }
 
-  TCacheEntryBase* ret =
-      SearchTextureCache(stage, address, base_hash, full_hash, full_format, palette_size);
-  if (ret)
-    return ret;
+  // Search the texture cache
+  auto process_search_result = [&](SearchResult search_result) -> TCacheEntryBase* {
+    switch (search_result.second)
+    {
+    case SearchTextureResultType::EfbCopy:
+      return ReturnEntry(stage, search_result.first);
+    case SearchTextureResultType::NormalTexture:
+    {
+      TCacheEntryBase* entry = search_result.first;
+      entry = DoPartialTextureUpdates(entry, &texMem[tlutaddr], tlutfmt);
+      return ReturnEntry(stage, entry);
+    }
+    case SearchTextureResultType::UnconvertedEfbCopy:
+    {
+      TCacheEntryBase* decoded_entry =
+          ApplyPaletteToEntry(search_result.first, &texMem[tlutaddr], tlutfmt);
+      if (decoded_entry)
+      {
+        return ReturnEntry(stage, decoded_entry);
+      }
+      break;
+    }
+    default:
+      return nullptr;
+    }
+  };
+
+  SearchResult search_result = SearchTextureCacheByAddress(
+      address, base_hash, full_hash, full_format, tex_levels, nativeW, nativeH, isPaletteTexture);
+  if (auto entry = process_search_result(search_result))
+  {
+    return entry;
+  }
+
+  if (g_ActiveConfig.iSafeTextureCache_ColorSamples == 0 ||
+      std::max(texture_size, palette_size) <=
+          (u32)g_ActiveConfig.iSafeTextureCache_ColorSamples * 8)
+  {
+    search_result = SearchTextureCacheByHash(full_hash, full_format, tex_levels, nativeW, nativeH);
+    if (auto entry = process_search_result(search_result))
+    {
+      return entry;
+    }
+  }
 
   std::shared_ptr<HiresTexture> hires_tex;
   if (g_ActiveConfig.bHiresTextures)
@@ -751,32 +799,11 @@ TextureCacheBase::TCacheEntryBase* TextureCacheBase::Load(const u32 stage)
   return ReturnEntry(stage, entry);
 }
 
-TextureCacheBase::TCacheEntryBase*
-TextureCacheBase::SearchTextureCache(const u32 stage, const u32 address, u64 base_hash,
-                                     u64 full_hash, u32 full_format, u32 palette_size)
+TextureCacheBase::SearchResult
+TextureCacheBase::SearchTextureCacheByAddress(const u32 address, u64 base_hash, u64 full_hash,
+                                              u32 full_format, u32 tex_levels, u32 nativeW,
+                                              u32 nativeH, bool isPaletteTexture)
 {
-  const FourTexUnits& tex = bpmem.tex[stage >> 2];
-  const u32 id = stage & 3;
-  const u32 tlutaddr = tex.texTlut[id].tmem_offset << 9;
-  const u32 tlutfmt = tex.texTlut[id].tlut_format;
-  const int texformat = tex.texImage0[id].format;
-  const unsigned int nativeW = tex.texImage0[id].width + 1;
-  const unsigned int nativeH = tex.texImage0[id].height + 1;
-
-  const bool isPaletteTexture =
-      (texformat == GX_TF_C4 || texformat == GX_TF_C8 || texformat == GX_TF_C14X2);
-
-  const unsigned int bsw = TexDecoder_GetBlockWidthInTexels(texformat);
-  const unsigned int bsh = TexDecoder_GetBlockHeightInTexels(texformat);
-  unsigned int expandedWidth = Common::AlignUp(nativeW, bsw);
-  unsigned int expandedHeight = Common::AlignUp(nativeH, bsh);
-  const u32 texture_size =
-      TexDecoder_GetTextureSizeInBytes(expandedWidth, expandedHeight, texformat);
-
-  const bool use_mipmaps = SamplerCommon::AreBpTexMode0MipmapsEnabled(tex.texMode0[id]);
-  u32 tex_levels = use_mipmaps ? ((tex.texMode1[id].max_lod + 0xf) / 0x10 + 1) : 1;
-  tex_levels = std::min<u32>(IntLog2(std::max(nativeW, nativeH)) + 1, tex_levels);
-
   // Search the texture cache for textures by address
   //
   // Find all texture cache entries for the current texture address, and decide whether to use one
@@ -841,7 +868,7 @@ TextureCacheBase::SearchTextureCache(const u32 stage, const u32 address, u64 bas
         // would have.
         if (!isPaletteTexture || !g_Config.backend_info.bSupportsPaletteConversion)
         {
-          return ReturnEntry(stage, entry);
+          return std::make_tuple(entry, SearchTextureResultType::EfbCopy);
         }
 
         // Note that we found an unconverted EFB copy, then continue.  We'll
@@ -867,9 +894,7 @@ TextureCacheBase::SearchTextureCache(const u32 stage, const u32 address, u64 bas
           entry->native_levels >= tex_levels && entry->native_width == nativeW &&
           entry->native_height == nativeH)
       {
-        entry = DoPartialTextureUpdates(iter->second, &texMem[tlutaddr], tlutfmt);
-
-        return ReturnEntry(stage, entry);
+        return std::make_tuple(entry, SearchTextureResultType::NormalTexture);
       }
     }
 
@@ -889,40 +914,7 @@ TextureCacheBase::SearchTextureCache(const u32 stage, const u32 address, u64 bas
 
   if (unconverted_copy != textures_by_address.end())
   {
-    TCacheEntryBase* decoded_entry =
-        ApplyPaletteToEntry(unconverted_copy->second, &texMem[tlutaddr], tlutfmt);
-
-    if (decoded_entry)
-    {
-      return ReturnEntry(stage, decoded_entry);
-    }
-  }
-
-  // Search the texture cache for normal textures by hash
-  //
-  // If the texture was fully hashed, the address does not need to match. Identical duplicate
-  // textures cause unnecessary slowdowns
-  // Example: Tales of Symphonia (GC) uses over 500 small textures in menus, but only around 70
-  // different ones
-  if (g_ActiveConfig.iSafeTextureCache_ColorSamples == 0 ||
-      std::max(texture_size, palette_size) <=
-          (u32)g_ActiveConfig.iSafeTextureCache_ColorSamples * 8)
-  {
-    auto hash_range = textures_by_hash.equal_range(full_hash);
-    auto hash_iter = hash_range.first;
-    while (hash_iter != hash_range.second)
-    {
-      TCacheEntryBase* entry = hash_iter->second;
-      // All parameters, except the address, need to match here
-      if (entry->format == full_format && entry->native_levels >= tex_levels &&
-          entry->native_width == nativeW && entry->native_height == nativeH)
-      {
-        entry = DoPartialTextureUpdates(hash_iter->second, &texMem[tlutaddr], tlutfmt);
-
-        return ReturnEntry(stage, entry);
-      }
-      ++hash_iter;
-    }
+    return std::make_tuple(unconverted_copy->second, SearchTextureResultType::UnconvertedEfbCopy);
   }
 
   // If at least one entry was not used for the same frame, overwrite the oldest one
@@ -932,7 +924,35 @@ TextureCacheBase::SearchTextureCache(const u32 stage, const u32 address, u64 bas
     InvalidateTexture(oldest_entry);
   }
 
-  return nullptr;
+  return std::make_tuple(nullptr, SearchTextureResultType::None);
+}
+
+TextureCacheBase::SearchResult TextureCacheBase::SearchTextureCacheByHash(u64 full_hash,
+                                                                          u32 full_format,
+                                                                          u32 tex_levels,
+                                                                          u32 nativeW, u32 nativeH)
+{
+  // Search the texture cache for normal textures by hash
+  //
+  // If the texture was fully hashed, the address does not need to match. Identical duplicate
+  // textures cause unnecessary slowdowns
+  // Example: Tales of Symphonia (GC) uses over 500 small textures in menus, but only around 70
+  // different ones
+  auto hash_range = textures_by_hash.equal_range(full_hash);
+  auto hash_iter = hash_range.first;
+  while (hash_iter != hash_range.second)
+  {
+    TCacheEntryBase* entry = hash_iter->second;
+    // All parameters, except the address, need to match here
+    if (entry->format == full_format && entry->native_levels >= tex_levels &&
+        entry->native_width == nativeW && entry->native_height == nativeH)
+    {
+      return std::make_pair(entry, SearchTextureResultType::NormalTexture);
+    }
+    ++hash_iter;
+  }
+
+  return std::make_pair(nullptr, SearchTextureResultType::None);
 }
 
 void TextureCacheBase::CopyRenderTargetToTexture(u32 dstAddr, unsigned int dstFormat, u32 dstStride,
