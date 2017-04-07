@@ -76,12 +76,13 @@ public:
   OpenALStream() : uiSource(0) {}
   bool Start() override;
   void SoundLoop() override;
-  void SetVolume(int volume) override;
+  void SetVolume(float volume) override;
   void Stop() override;
   void Clear(bool mute) override;
   void Update() override;
 
   static bool isValid() { return true; }
+
 private:
   std::thread thread;
   Common::Flag m_run_thread;

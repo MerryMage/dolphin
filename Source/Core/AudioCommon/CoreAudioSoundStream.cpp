@@ -65,7 +65,7 @@ bool CoreAudioSound::Start()
   }
 
   err = AudioUnitSetParameter(audioUnit, kHALOutputParam_Volume, kAudioUnitScope_Output, 0,
-                              m_volume / 100., 0);
+                              m_volume, 0);
   if (err != noErr)
     ERROR_LOG(AUDIO, "error setting volume");
 
@@ -86,13 +86,13 @@ bool CoreAudioSound::Start()
   return true;
 }
 
-void CoreAudioSound::SetVolume(int volume)
+void CoreAudioSound::SetVolume(float volume)
 {
   OSStatus err;
   m_volume = volume;
 
-  err = AudioUnitSetParameter(audioUnit, kHALOutputParam_Volume, kAudioUnitScope_Output, 0,
-                              volume / 100., 0);
+  err = AudioUnitSetParameter(audioUnit, kHALOutputParam_Volume, kAudioUnitScope_Output, 0, volume,
+                              0);
   if (err != noErr)
     ERROR_LOG(AUDIO, "error setting volume");
 }

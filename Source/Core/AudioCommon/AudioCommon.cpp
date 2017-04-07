@@ -2,8 +2,10 @@
 // Licensed under GPLv2+
 // Refer to the license.txt file included.
 
-#include "AudioCommon/AudioCommon.h"
+#include <cmath>
+
 #include "AudioCommon/AlsaSoundStream.h"
+#include "AudioCommon/AudioCommon.h"
 #include "AudioCommon/CoreAudioSoundStream.h"
 #include "AudioCommon/Mixer.h"
 #include "AudioCommon/NullSoundStream.h"
@@ -153,8 +155,10 @@ void UpdateSoundStream()
 {
   if (g_sound_stream)
   {
+    constexpr float dB_range = 40.f;
     int volume = SConfig::GetInstance().m_IsMuted ? 0 : SConfig::GetInstance().m_Volume;
-    g_sound_stream->SetVolume(volume);
+    float gain = (volume == 0) ? 0.f : std::powf(10.f, dB_range * (volume / 100.f - 1.f) / 20);
+    g_sound_stream->SetVolume(gain);
   }
 }
 

@@ -202,10 +202,10 @@ bool XAudio2::Start()
   return true;
 }
 
-void XAudio2::SetVolume(int volume)
+void XAudio2::SetVolume(float volume)
 {
   // linear 1- .01
-  m_volume = (float)volume / 100.f;
+  m_volume = volume;
 
   if (m_mastering_voice)
     m_mastering_voice->SetVolume(m_volume);

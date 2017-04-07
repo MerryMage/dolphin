@@ -12,12 +12,13 @@ class NullSound final : public SoundStream
 public:
   bool Start() override;
   void SoundLoop() override;
-  void SetVolume(int volume) override;
+  void SetVolume(float volume) override;
   void Stop() override;
   void Clear(bool mute) override;
   void Update() override;
 
   static bool isValid() { return true; }
+
 private:
   static constexpr size_t BUFFER_SIZE = 48000 * 4 / 32;
 

@@ -101,9 +101,9 @@ void OpenALStream::Stop()
   alcCloseDevice(pDevice);
 }
 
-void OpenALStream::SetVolume(int volume)
+void OpenALStream::SetVolume(float volume)
 {
-  fVolume = (float)volume / 100.0f;
+  fVolume = volume;
 
   if (uiSource)
     alSourcef(uiSource, AL_GAIN, fVolume);

@@ -21,7 +21,7 @@ public:
   static bool isValid() { return false; }
   CMixer* GetMixer() const { return m_mixer.get(); }
   virtual bool Start() { return false; }
-  virtual void SetVolume(int) {}
+  virtual void SetVolume(float) {}
   virtual void SoundLoop() {}
   virtual void Stop() {}
   virtual void Update() {}

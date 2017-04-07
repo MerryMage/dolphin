@@ -16,7 +16,7 @@ bool NullSound::Start()
   return true;
 }
 
-void NullSound::SetVolume(int volume)
+void NullSound::SetVolume(float volume)
 {
 }
 

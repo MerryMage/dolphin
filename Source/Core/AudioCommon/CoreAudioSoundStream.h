@@ -15,12 +15,13 @@ class CoreAudioSound final : public SoundStream
 #ifdef __APPLE__
 public:
   bool Start() override;
-  void SetVolume(int volume) override;
+  void SetVolume(float volume) override;
   void SoundLoop() override;
   void Stop() override;
   void Update() override;
 
   static bool isValid() { return true; }
+
 private:
   AudioUnit audioUnit;
   int m_volume;

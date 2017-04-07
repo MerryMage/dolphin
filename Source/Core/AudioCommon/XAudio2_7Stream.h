@@ -65,7 +65,7 @@ public:
   void Stop() override;
 
   void Clear(bool mute) override;
-  void SetVolume(int volume) override;
+  void SetVolume(float volume) override;
 
   static bool isValid() { return InitLibrary(); }
 #endif
