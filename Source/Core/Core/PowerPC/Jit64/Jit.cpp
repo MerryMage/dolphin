@@ -1035,3 +1035,26 @@ void Jit64::IntializeSpeculativeConstants()
     }
   }
 }
+
+Gen::OpArg Jit64::MPIC(const void* ptr, X64Reg scratch)
+{
+  u64 address = reinterpret_cast<u64>(ptr);
+  if (address <= 0xFFFFFFFFLL)
+    return M(ptr);
+
+  // code_ptr is not quite RIP at actual emit, so have a safety margin.
+  constexpr size_t safety_margin = 256;
+  s64 code_ptr = reinterpret_cast<s64>(GetCodePtr());
+  s64 rip_offset = static_cast<s64>(address) - code_ptr;
+  if (rip_offset < 0x80000000LL - safety_margin && rip_offset >= -0x80000000LL + safety_margin)
+    return M(ptr);
+
+  s64 ppc_ptr = reinterpret_cast<s64>(&PowerPC::ppcState) + 0x80;
+  s64 ppc_offset = static_cast<s64>(address) - ppc_ptr;
+  if (ppc_offset < 0x80000000LL && ppc_offset >= -0x80000000LL)
+    return MDisp(RPPCSTATE, static_cast<int>(ppc_offset));
+
+  _assert_msg_(DYNA_REC, scratch != Gen::INVALID_REG, "Offset %llx requires scratch", address);
+  MOV(64, R(scratch), ImmPtr(ptr));
+  return MatR(scratch);
+}

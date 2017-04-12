@@ -237,6 +237,8 @@ private:
   void AllocStack();
   void FreeStack();
 
+  Gen::OpArg MPIC(const void* ptr, Gen::X64Reg scratch = Gen::INVALID_REG);
+
   GPRRegCache gpr{*this};
   FPURegCache fpr{*this};
 
