@@ -230,16 +230,30 @@ void OpArg::WriteRest(XEmitter* emit, int extraBytes, X64Reg _operandReg,
   if (scale == SCALE_RIP)  // Also, on 32-bit, just an immediate address
   {
     // Oh, RIP addressing.
-    _offsetOrBaseReg = 5;
-    emit->WriteModRM(0, _operandReg, _offsetOrBaseReg);
-    // TODO : add some checks
     u64 ripAddr = (u64)emit->GetCodePtr() + 4 + extraBytes;
     s64 distance = (s64)offset - (s64)ripAddr;
-    _assert_msg_(DYNA_REC,
-                 (distance < 0x80000000LL && distance >= -0x80000000LL) || !warn_64bit_offset,
+
+    if (distance < 0x80000000LL && distance >= -0x80000000LL)
+    {
+      _offsetOrBaseReg = 5;
+      emit->WriteModRM(0, _operandReg, _offsetOrBaseReg);
+      // TODO : add some checks
+
+      s32 offs = (s32)distance;
+      emit->Write32((u32)offs);
+      return;
+    }
+
+    if (offset <= 0xFFFFFFFFLL)
+    {
+      emit->WriteModRM(0, _operandReg, 4);
+      emit->Write8(0x25);
+      emit->Write32(static_cast<u32>(offset));
+      return;
+    }
+
+    _assert_msg_(DYNA_REC, !warn_64bit_offset,
                  "WriteRest: op out of range (0x%" PRIx64 " uses 0x%" PRIx64 ")", ripAddr, offset);
-    s32 offs = (s32)distance;
-    emit->Write32((u32)offs);
     return;
   }
 
