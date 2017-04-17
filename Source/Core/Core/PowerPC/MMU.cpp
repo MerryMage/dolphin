@@ -1041,8 +1041,8 @@ static void UpdateTLBEntry(const XCheckTLBFlag flag, UPTE2 PTE2, const u32 addre
   const int tag = address >> HW_PAGE_INDEX_SHIFT;
   TLBEntry& tlbe = ppcState.tlb[IsOpcodeFlag(flag)][tag & HW_PAGE_INDEX_MASK];
 
-  //if (tlbe.tag[0] != TLBEntry::INVALID_TAG)
-  //  RecalculateMmuLut_Remove(tlbe, !tlbe.recent);
+  if (tlbe.tag[0] != TLBEntry::INVALID_TAG)
+    RecalculateMmuLut_Remove(tlbe, !tlbe.recent);
 
   const int index = tlbe.recent == 0 && tlbe.tag[0] != TLBEntry::INVALID_TAG;
   tlbe.recent = index;
