@@ -1307,6 +1307,13 @@ bool IsFastmemCapablePhysicalAddress(u32 physical_address)
     return false;
 }
 
+static bool IsPteC(u32 pte)
+{
+    UPTE2 PTE2;
+    PTE2.Hex = pte;
+    return (PTE2.C == 0);
+}
+
 void RecalculateMmuLut()
 {
   printf("meow\n");
@@ -1316,9 +1323,7 @@ void RecalculateMmuLut()
   {
     if (tlbe.tag[tlbe.recent] != TLBEntry::INVALID_TAG)
     {
-      UPTE2 PTE2;
-      PTE2.Hex = tlbe.pte[tlbe.recent];
-      if (PTE2.C == 0)
+      if (IsPteC(tlbe.tag[tlbe.recent]))
         continue;
 
       u32 vaddr = tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT;
@@ -1338,7 +1343,7 @@ void RecalculateMmuLut()
       for (int i = 0; i < BAT_PAGE_SIZE; i += HW_PAGE_SIZE)
       {
         u32 vaddr = address + i;
-        u32 paddr = dbat & BAT_RESULT_MASK;
+        u32 paddr = (dbat + i) & BAT_RESULT_MASK;
         if (IsFastmemCapablePhysicalAddress(paddr))
           mmu_lut[vaddr >> HW_PAGE_INDEX_SHIFT].ptr = (u64)Memory::physical_base + paddr - vaddr;
         else
@@ -1352,18 +1357,21 @@ void RecalculateMmuLut()
 void RecalculateMmuLut_RecentChanged(const TLBEntry& tlbe)
 {
   if (tlbe.tag[!tlbe.recent] != TLBEntry::INVALID_TAG)
-  if ((dbat_table[tlbe.tag[!tlbe.recent] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
+  //if ((dbat_table[tlbe.tag[!tlbe.recent] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
   {
     mmu_lut[tlbe.tag[!tlbe.recent]].ptr = 0;
   }
 
   if (tlbe.tag[tlbe.recent] != TLBEntry::INVALID_TAG)
-  if ((dbat_table[tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
+  //if ((dbat_table[tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
   {
     u32 vaddr = tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT;
     u32 paddr = tlbe.paddr[tlbe.recent];
     if (IsFastmemCapablePhysicalAddress(paddr))
     {
+        if (IsPteC(tlbe.tag[tlbe.recent]))
+            return;
+        
       mmu_lut[tlbe.tag[tlbe.recent]].ptr = (u64)Memory::physical_base + paddr - vaddr;
     }
   }
@@ -1373,7 +1381,7 @@ void RecalculateMmuLut_InvalidateEntry(const TLBEntry& tlbe)
 {
     for (int i = 0; i < 2; i++)
     if (tlbe.tag[i] != TLBEntry::INVALID_TAG)
-        if ((dbat_table[tlbe.tag[i] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
+        //if ((dbat_table[tlbe.tag[i] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
         {
             mmu_lut[tlbe.tag[i]].ptr = 0;
         }

@@ -402,14 +402,13 @@ void EmuCodeBlock::SafeLoadToReg(X64Reg reg_value, const Gen::OpArg& opAddress, 
 
     if (reg_addr != RSCRATCH_EXTRA)
       MOV(32, R(RSCRATCH_EXTRA), R(reg_addr));
-    if (reg_addr != RSCRATCH2)
-      MOV(32, R(RSCRATCH2), R(reg_addr));
+    MOV(32, R(RSCRATCH2), R(reg_addr));
 
     // Perform lookup to see if we can use fast path.
     MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut));
     SHR(32, R(RSCRATCH_EXTRA), Imm8(12));
     MOV(64, R(RSCRATCH_EXTRA), MComplex(RSCRATCH, RSCRATCH_EXTRA, SCALE_8, 0));
-    CMP(64, R(RSCRATCH_EXTRA), Imm32(0));
+    TEST(64, R(RSCRATCH_EXTRA), R(RSCRATCH_EXTRA));
 
     if (registers_in_use[RSCRATCH])
       POP(RSCRATCH);
@@ -591,13 +590,70 @@ void EmuCodeBlock::SafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int acces
   bool fast_check_address = !slowmem && dr_set;
   if (fast_check_address)
   {
-    FixupBranch slow = CheckIfSafeAddress(reg_value, reg_addr, registersInUse);
-    UnsafeWriteRegToReg(reg_value, reg_addr, accessSize, 0, swap);
-    if (m_far_code.Enabled())
-      SwitchToFarCode();
-    else
-      exit = J(true);
-    SetJumpTarget(slow);
+      auto registers_in_use = registersInUse;
+
+      _assert_(reg_value.IsSimpleReg());
+
+      registers_in_use[reg_value.GetSimpleReg()] = true;
+      registers_in_use[reg_addr] = true;
+
+      // Get ourselves two free registers
+      if (registers_in_use[RSCRATCH_EXTRA])
+          PUSH(RSCRATCH_EXTRA);
+      if (registers_in_use[RSCRATCH2])
+          PUSH(RSCRATCH2);
+      if (registers_in_use[RSCRATCH])
+          PUSH(RSCRATCH);
+
+      PUSH(reg_value.GetSimpleReg());
+
+      if (reg_addr != RSCRATCH_EXTRA)
+          MOV(32, R(RSCRATCH_EXTRA), R(reg_addr));
+      MOV(32, R(RSCRATCH2), R(reg_addr));
+
+      // Perform lookup to see if we can use fast path.
+      MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut));
+      SHR(32, R(RSCRATCH_EXTRA), Imm8(12));
+      MOV(64, R(RSCRATCH_EXTRA), MComplex(RSCRATCH, RSCRATCH_EXTRA, SCALE_8, 0));
+      TEST(64, R(RSCRATCH_EXTRA), R(RSCRATCH_EXTRA));
+
+      if (registers_in_use[RSCRATCH])
+          POP(RSCRATCH);
+
+      auto slow = J_CC(CC_Z, m_far_code.Enabled());
+
+      POP(RSCRATCH);
+
+      _assert_(reg_value.IsSimpleReg());
+      if (swap)
+      {
+          SwapAndStore(accessSize, MRegSum(RSCRATCH_EXTRA, RSCRATCH2), RSCRATCH);
+      }
+      else
+      {
+          MOV(accessSize, MRegSum(RSCRATCH_EXTRA, RSCRATCH2), R(RSCRATCH));
+      }
+
+      if (registers_in_use[RSCRATCH2])
+      {
+          POP(RSCRATCH2);
+      }
+      if (registers_in_use[RSCRATCH_EXTRA])
+      {
+          POP(RSCRATCH_EXTRA);
+      }
+
+      if (m_far_code.Enabled())
+          SwitchToFarCode();
+      else
+          exit = J(true);
+      SetJumpTarget(slow);
+
+      POP(reg_value.GetSimpleReg());
+      if (registers_in_use[RSCRATCH2])
+          POP(RSCRATCH2);
+      if (registers_in_use[RSCRATCH_EXTRA])
+          POP(RSCRATCH_EXTRA);
   }
 
   // PC is used by memory watchpoints (if enabled) or to print accurate PC locations in debug logs
