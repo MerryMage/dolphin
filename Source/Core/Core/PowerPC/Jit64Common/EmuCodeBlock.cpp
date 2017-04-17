@@ -405,7 +405,7 @@ void EmuCodeBlock::SafeLoadToReg(X64Reg reg_value, const Gen::OpArg& opAddress, 
     MOV(32, R(RSCRATCH2), R(reg_addr));
 
     // Perform lookup to see if we can use fast path.
-    MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut));
+    MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut_read));
     SHR(32, R(RSCRATCH_EXTRA), Imm8(12));
     MOV(64, R(RSCRATCH_EXTRA), MComplex(RSCRATCH, RSCRATCH_EXTRA, SCALE_8, 0));
     TEST(64, R(RSCRATCH_EXTRA), R(RSCRATCH_EXTRA));
@@ -612,7 +612,7 @@ void EmuCodeBlock::SafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int acces
       MOV(32, R(RSCRATCH2), R(reg_addr));
 
       // Perform lookup to see if we can use fast path.
-      MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut));
+      MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut_write));
       SHR(32, R(RSCRATCH_EXTRA), Imm8(12));
       MOV(64, R(RSCRATCH_EXTRA), MComplex(RSCRATCH, RSCRATCH_EXTRA, SCALE_8, 0));
       TEST(64, R(RSCRATCH_EXTRA), R(RSCRATCH_EXTRA));

@@ -232,7 +232,8 @@ struct MMULutEntry
 {
   u64 ptr = 0;
 };
-extern std::array<MMULutEntry, (0x100000000u >> 12)> mmu_lut;
+extern std::array<MMULutEntry, (0x100000000u >> 12)> mmu_lut_read;
+extern std::array<MMULutEntry, (0x100000000u >> 12)> mmu_lut_write;
 
 // Used by interpreter to read instructions, uses iCache
 u32 Read_Opcode(u32 address);
