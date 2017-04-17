@@ -387,13 +387,62 @@ void EmuCodeBlock::SafeLoadToReg(X64Reg reg_value, const Gen::OpArg& opAddress, 
   bool fast_check_address = !slowmem && dr_set;
   if (fast_check_address)
   {
-    FixupBranch slow = CheckIfSafeAddress(R(reg_value), reg_addr, registersInUse);
-    UnsafeLoadToReg(reg_value, R(reg_addr), accessSize, 0, signExtend);
+    auto registers_in_use = registersInUse;
+
+    registers_in_use[reg_value] = false;
+    registers_in_use[reg_addr] = true;
+
+    // Get ourselves two free registers
+    if (registers_in_use[RSCRATCH_EXTRA])
+      PUSH(RSCRATCH_EXTRA);
+    if (registers_in_use[RSCRATCH2])
+      PUSH(RSCRATCH2);
+    if (registers_in_use[RSCRATCH])
+      PUSH(RSCRATCH);
+
+    if (reg_addr != RSCRATCH_EXTRA)
+      MOV(32, R(RSCRATCH_EXTRA), R(reg_addr));
+    if (reg_addr != RSCRATCH2)
+      MOV(32, R(RSCRATCH2), R(reg_addr));
+
+    // Perform lookup to see if we can use fast path.
+    MOV(64, R(RSCRATCH), ImmPtr(&PowerPC::mmu_lut));
+    SHR(32, R(RSCRATCH_EXTRA), Imm8(12));
+    MOV(64, R(RSCRATCH_EXTRA), MComplex(RSCRATCH, RSCRATCH_EXTRA, SCALE_8, 0));
+    CMP(64, R(RSCRATCH_EXTRA), Imm32(0));
+
+    if (registers_in_use[RSCRATCH])
+      POP(RSCRATCH);
+
+    auto slow = J_CC(CC_Z, m_far_code.Enabled());
+
+    LoadAndSwap(accessSize, reg_value, MRegSum(RSCRATCH_EXTRA, RSCRATCH2), signExtend);
+
+    if (registers_in_use[RSCRATCH2])
+    {
+      if (reg_value == RSCRATCH2)
+        ADD(64, R(RSP), Imm8(8));
+      else
+        POP(RSCRATCH2);
+    }
+    if (registers_in_use[RSCRATCH_EXTRA])
+    {
+      if (reg_value == RSCRATCH_EXTRA)
+        ADD(64, R(RSP), Imm8(8));
+      else
+        POP(RSCRATCH_EXTRA);
+    }
+
     if (m_far_code.Enabled())
       SwitchToFarCode();
     else
       exit = J(true);
     SetJumpTarget(slow);
+
+    if (registers_in_use[RSCRATCH2])
+      POP(RSCRATCH2);
+    if (registers_in_use[RSCRATCH_EXTRA])
+      POP(RSCRATCH_EXTRA);
   }
   size_t rsp_alignment = (flags & SAFE_LOADSTORE_NO_PROLOG) ? 8 : 0;
   ABI_PushRegistersAndAdjustStack(registersInUse, rsp_alignment);

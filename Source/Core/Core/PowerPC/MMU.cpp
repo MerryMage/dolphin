@@ -30,6 +30,9 @@ constexpr size_t HW_PAGE_SIZE = 4096;
 constexpr u32 HW_PAGE_INDEX_SHIFT = 12;
 constexpr u32 HW_PAGE_INDEX_MASK = 0x3f;
 
+void RecalculateMmuLut_RecentChanged(const TLBEntry&);
+void RecalculateMmuLut_InvalidateEntry(const TLBEntry&);
+
 // EFB RE
 /*
 GXPeekZ
@@ -972,6 +975,8 @@ static TLBLookupResult LookupTLBPageAddress(const XCheckTLBFlag flag, const u32 
   const u32 tag = vpa >> HW_PAGE_INDEX_SHIFT;
   TLBEntry& tlbe = ppcState.tlb[IsOpcodeFlag(flag)][tag & HW_PAGE_INDEX_MASK];
 
+  u8 old_recent = tlbe.recent;
+
   if (tlbe.tag[0] == tag)
   {
     // Check if C bit requires updating
@@ -987,8 +992,11 @@ static TLBLookupResult LookupTLBPageAddress(const XCheckTLBFlag flag, const u32 
       }
     }
 
-    if (!IsNoExceptionFlag(flag))
+    if (!IsNoExceptionFlag(flag) && tlbe.recent != 0)
+    {
       tlbe.recent = 0;
+      RecalculateMmuLut_RecentChanged(tlbe);
+    }
 
     *paddr = tlbe.paddr[0] | (vpa & 0xfff);
 
@@ -1009,8 +1017,11 @@ static TLBLookupResult LookupTLBPageAddress(const XCheckTLBFlag flag, const u32 
       }
     }
 
-    if (!IsNoExceptionFlag(flag))
+    if (!IsNoExceptionFlag(flag) && tlbe.recent != 1)
+    {
       tlbe.recent = 1;
+      RecalculateMmuLut_RecentChanged(tlbe);
+    }
 
     *paddr = tlbe.paddr[1] | (vpa & 0xfff);
 
@@ -1026,16 +1037,21 @@ static void UpdateTLBEntry(const XCheckTLBFlag flag, UPTE2 PTE2, const u32 addre
 
   const int tag = address >> HW_PAGE_INDEX_SHIFT;
   TLBEntry& tlbe = ppcState.tlb[IsOpcodeFlag(flag)][tag & HW_PAGE_INDEX_MASK];
+
   const int index = tlbe.recent == 0 && tlbe.tag[0] != TLBEntry::INVALID_TAG;
   tlbe.recent = index;
   tlbe.paddr[index] = PTE2.RPN << HW_PAGE_INDEX_SHIFT;
   tlbe.pte[index] = PTE2.Hex;
   tlbe.tag[index] = tag;
+
+  RecalculateMmuLut_RecentChanged(tlbe);
 }
 
 void InvalidateTLBEntry(u32 address)
 {
   const u32 entry_index = (address >> HW_PAGE_INDEX_SHIFT) & HW_PAGE_INDEX_MASK;
+
+  RecalculateMmuLut_InvalidateEntry(ppcState.tlb[0][entry_index]);
 
   TLBEntry& tlbe = ppcState.tlb[0][entry_index];
   tlbe.tag[0] = TLBEntry::INVALID_TAG;
@@ -1044,6 +1060,7 @@ void InvalidateTLBEntry(u32 address)
   TLBEntry& tlbe_i = ppcState.tlb[1][entry_index];
   tlbe_i.tag[0] = TLBEntry::INVALID_TAG;
   tlbe_i.tag[1] = TLBEntry::INVALID_TAG;
+
 }
 
 // Page Address Translation
@@ -1240,6 +1257,7 @@ void DBATUpdated()
 
   // IsOptimizable*Address and dcbz depends on the BAT mapping, so we need a flush here.
   JitInterface::ClearSafe();
+  RecalculateMmuLut();
 }
 
 void IBATUpdated()
@@ -1269,6 +1287,96 @@ static TranslateAddressResult TranslateAddress(u32 address)
     return TranslateAddressResult{TranslateAddressResult::BAT_TRANSLATED, address};
 
   return TranslatePageAddress(address, flag);
+}
+
+std::array<MMULutEntry, (0x100000000u >> 12)> mmu_lut;
+
+bool IsFastmemCapablePhysicalAddress(u32 physical_address)
+{
+    if (Memory::m_pFakeVMEM && (physical_address & 0xFE000000) == 0x7E000000)
+        return true;
+    else if (physical_address < Memory::REALRAM_SIZE)
+        return true;
+    else if (Memory::m_pEXRAM && physical_address >> 28 == 0x1 &&
+             (physical_address & 0x0FFFFFFF) < Memory::EXRAM_SIZE)
+        return true;
+    else if (physical_address >> 28 == 0xE &&
+             physical_address < 0xE0000000 + Memory::L1_CACHE_SIZE)
+        return true;
+
+    return false;
+}
+
+void RecalculateMmuLut()
+{
+  printf("meow\n");
+  mmu_lut.fill({});
+
+  for (const TLBEntry& tlbe : ppcState.tlb[0])
+  {
+    if (tlbe.tag[tlbe.recent] != TLBEntry::INVALID_TAG)
+    {
+      UPTE2 PTE2;
+      PTE2.Hex = tlbe.pte[tlbe.recent];
+      if (PTE2.C == 0)
+        continue;
+
+      u32 vaddr = tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT;
+      u32 paddr = tlbe.paddr[tlbe.recent];
+      if (IsFastmemCapablePhysicalAddress(paddr))
+      {
+        mmu_lut[vaddr >> HW_PAGE_INDEX_SHIFT].ptr = (u64)Memory::physical_base + paddr - vaddr;
+      }
+    }
+  }
+
+  u32 address = 0;
+  for (u32 dbat : dbat_table)
+  {
+    if (dbat & BAT_MAPPED_BIT)
+    {
+      for (int i = 0; i < BAT_PAGE_SIZE; i += HW_PAGE_SIZE)
+      {
+        u32 vaddr = address + i;
+        u32 paddr = dbat & BAT_RESULT_MASK;
+        if (IsFastmemCapablePhysicalAddress(paddr))
+          mmu_lut[vaddr >> HW_PAGE_INDEX_SHIFT].ptr = (u64)Memory::physical_base + paddr - vaddr;
+        else
+          mmu_lut[vaddr >> HW_PAGE_INDEX_SHIFT].ptr = 0;
+      }
+    }
+    address += BAT_PAGE_SIZE;
+  }
+}
+
+void RecalculateMmuLut_RecentChanged(const TLBEntry& tlbe)
+{
+  if (tlbe.tag[!tlbe.recent] != TLBEntry::INVALID_TAG)
+  if ((dbat_table[tlbe.tag[!tlbe.recent] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
+  {
+    mmu_lut[tlbe.tag[!tlbe.recent]].ptr = 0;
+  }
+
+  if (tlbe.tag[tlbe.recent] != TLBEntry::INVALID_TAG)
+  if ((dbat_table[tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
+  {
+    u32 vaddr = tlbe.tag[tlbe.recent] << HW_PAGE_INDEX_SHIFT;
+    u32 paddr = tlbe.paddr[tlbe.recent];
+    if (IsFastmemCapablePhysicalAddress(paddr))
+    {
+      mmu_lut[tlbe.tag[tlbe.recent]].ptr = (u64)Memory::physical_base + paddr - vaddr;
+    }
+  }
+}
+
+void RecalculateMmuLut_InvalidateEntry(const TLBEntry& tlbe)
+{
+    for (int i = 0; i < 2; i++)
+    if (tlbe.tag[i] != TLBEntry::INVALID_TAG)
+        if ((dbat_table[tlbe.tag[i] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
+        {
+            mmu_lut[tlbe.tag[i]].ptr = 0;
+        }
 }
 
 }  // namespace

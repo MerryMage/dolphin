@@ -227,6 +227,13 @@ std::string HostGetString(u32 em_address, size_t size = 0);
 
 // Routines for the CPU core to access memory.
 
+void RecalculateMmuLut();
+struct MMULutEntry
+{
+  u64 ptr = 0;
+};
+extern std::array<MMULutEntry, (0x100000000u >> 12)> mmu_lut;
+
 // Used by interpreter to read instructions, uses iCache
 u32 Read_Opcode(u32 address);
 struct TryReadInstResult
