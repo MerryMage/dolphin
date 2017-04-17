@@ -345,17 +345,18 @@ void Jit64::dcbz(UGeckoInstruction inst)
   if (UReg_MSR(MSR).DR)
   {
     // Perform lookup to see if we can use fast path.
-    MOV(64, R(RSCRATCH2), ImmPtr(&PowerPC::dbat_table[0]));
+    MOV(64, R(RSCRATCH2), ImmPtr(&PowerPC::mmu_lut_write));
     PUSH(RSCRATCH);
-    SHR(32, R(RSCRATCH), Imm8(PowerPC::BAT_INDEX_SHIFT));
-    TEST(32, MComplex(RSCRATCH2, RSCRATCH, SCALE_4, 0), Imm32(PowerPC::BAT_PHYSICAL_BIT));
+    SHR(32, R(RSCRATCH), Imm8(12));
+    MOV(64, R(RSCRATCH2), MComplex(RSCRATCH2, RSCRATCH, SCALE_8, 0));
+    TEST(32, R(RSCRATCH2), R(RSCRATCH2));
     POP(RSCRATCH);
     FixupBranch slow = J_CC(CC_Z, true);
 
     // Fast path: compute full address, then zero out 32 bytes of memory.
     XORPS(XMM0, R(XMM0));
-    MOVAPS(MComplex(RMEM, RSCRATCH, SCALE_1, 0), XMM0);
-    MOVAPS(MComplex(RMEM, RSCRATCH, SCALE_1, 16), XMM0);
+    MOVAPS(MComplex(RSCRATCH2, RSCRATCH, SCALE_1, 0), XMM0);
+    MOVAPS(MComplex(RSCRATCH2, RSCRATCH, SCALE_1, 16), XMM0);
 
     // Slow path: call the general-case code.
     SwitchToFarCode();
