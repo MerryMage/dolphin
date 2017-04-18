@@ -1044,7 +1044,7 @@ static void UpdateTLBEntry(const XCheckTLBFlag flag, UPTE2 PTE2, const u32 addre
   if (tlbe.tag[0] != TLBEntry::INVALID_TAG)
     RecalculateMmuLut_Remove(tlbe, !tlbe.recent);
 
-  const int index = tlbe.recent == 0 && tlbe.tag[0] != TLBEntry::INVALID_TAG;
+  const int index = rand() % 2; // tlbe.recent == 0 && tlbe.tag[0] != TLBEntry::INVALID_TAG;
   tlbe.recent = index;
   tlbe.paddr[index] = PTE2.RPN << HW_PAGE_INDEX_SHIFT;
   tlbe.pte[index] = PTE2.Hex;
@@ -1368,12 +1368,14 @@ void RecalculateMmuLut_Remove(const TLBEntry& tlbe, u8 index)
 
 void RecalculateMmuLut_InvalidateEntriesAt(u32 address)
 {
+    printf("invalidate\n");
     mmu_lut_read[address >> HW_PAGE_INDEX_SHIFT].ptr = 0;
     mmu_lut_write[address >> HW_PAGE_INDEX_SHIFT].ptr = 0;
 }
 
 void RecalculateMmuLut_Add(const TLBEntry& tlbe, u8 index)
 {
+    printf("add\n");
     if (tlbe.tag[index] != TLBEntry::INVALID_TAG)
         //if ((dbat_table[tlbe.tag[index] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
     {
@@ -1392,6 +1394,7 @@ void RecalculateMmuLut_Add(const TLBEntry& tlbe, u8 index)
 
 void RecalculateMmuLut_RecentChanged(const TLBEntry& tlbe)
 {
+    printf("rc\n");
     RecalculateMmuLut_Remove(tlbe, !tlbe.recent);
     RecalculateMmuLut_Add(tlbe, tlbe.recent);
 }
