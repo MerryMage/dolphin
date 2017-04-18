@@ -617,12 +617,9 @@ void EmuCodeBlock::SafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int acces
       MOV(64, R(RSCRATCH_EXTRA), MComplex(RSCRATCH, RSCRATCH_EXTRA, SCALE_8, 0));
       TEST(64, R(RSCRATCH_EXTRA), R(RSCRATCH_EXTRA));
 
-      if (registers_in_use[RSCRATCH])
-          POP(RSCRATCH);
+      POP(RSCRATCH);
 
       auto slow = J_CC(CC_Z, m_far_code.Enabled());
-
-      POP(RSCRATCH);
 
       _assert_(reg_value.IsSimpleReg());
       if (swap)
@@ -634,6 +631,10 @@ void EmuCodeBlock::SafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int acces
           MOV(accessSize, MRegSum(RSCRATCH_EXTRA, RSCRATCH2), R(RSCRATCH));
       }
 
+      if (registers_in_use[RSCRATCH])
+      {
+          POP(RSCRATCH);
+      }
       if (registers_in_use[RSCRATCH2])
       {
           POP(RSCRATCH2);
@@ -649,7 +650,8 @@ void EmuCodeBlock::SafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int acces
           exit = J(true);
       SetJumpTarget(slow);
 
-      POP(reg_value.GetSimpleReg());
+      if (registers_in_use[RSCRATCH])
+          POP(RSCRATCH);
       if (registers_in_use[RSCRATCH2])
           POP(RSCRATCH2);
       if (registers_in_use[RSCRATCH_EXTRA])

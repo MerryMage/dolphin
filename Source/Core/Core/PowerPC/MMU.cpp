@@ -1044,7 +1044,7 @@ static void UpdateTLBEntry(const XCheckTLBFlag flag, UPTE2 PTE2, const u32 addre
   if (tlbe.tag[0] != TLBEntry::INVALID_TAG)
     RecalculateMmuLut_Remove(tlbe, !tlbe.recent);
 
-  const int index = rand() % 2; // tlbe.recent == 0 && tlbe.tag[0] != TLBEntry::INVALID_TAG;
+  const int index = (rand() % 2) && tlbe.tag[0] != TLBEntry::INVALID_TAG;
   tlbe.recent = index;
   tlbe.paddr[index] = PTE2.RPN << HW_PAGE_INDEX_SHIFT;
   tlbe.pte[index] = PTE2.Hex;
@@ -1055,14 +1055,16 @@ static void UpdateTLBEntry(const XCheckTLBFlag flag, UPTE2 PTE2, const u32 addre
 
 void InvalidateTLBEntry(u32 address)
 {
-  const u32 entry_index = (address >> HW_PAGE_INDEX_SHIFT) & HW_PAGE_INDEX_MASK;
-
-  RecalculateMmuLut_InvalidateEntry(ppcState.tlb[0][entry_index]);
-  RecalculateMmuLut_InvalidateEntriesAt(address);
+  const u32 tag = address >> HW_PAGE_INDEX_SHIFT;
+  const u32 entry_index = tag & HW_PAGE_INDEX_MASK;
 
   TLBEntry& tlbe = ppcState.tlb[0][entry_index];
-  tlbe.tag[0] = TLBEntry::INVALID_TAG;
-  tlbe.tag[1] = TLBEntry::INVALID_TAG;
+  if (tlbe.tag[0] == tag || tlbe.tag[1] == tag)
+    RecalculateMmuLut_InvalidateEntriesAt(address);
+  if (tlbe.tag[0] == tag)
+    tlbe.tag[0] = TLBEntry::INVALID_TAG;
+  if (tlbe.tag[1] == tag)
+    tlbe.tag[1] = TLBEntry::INVALID_TAG;
 
   TLBEntry& tlbe_i = ppcState.tlb[1][entry_index];
   tlbe_i.tag[0] = TLBEntry::INVALID_TAG;
@@ -1358,6 +1360,7 @@ void RecalculateMmuLut()
 
 void RecalculateMmuLut_Remove(const TLBEntry& tlbe, u8 index)
 {
+  printf("rm\n");
     if (tlbe.tag[index] != TLBEntry::INVALID_TAG)
         //if ((dbat_table[tlbe.tag[index] << HW_PAGE_INDEX_SHIFT >> BAT_INDEX_SHIFT] & BAT_MAPPED_BIT) == 0)
     {
