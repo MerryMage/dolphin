@@ -12,6 +12,7 @@
 #include "Common/Config/Enums.h"
 #include "Common/Config/Layer.h"
 #include "Common/Config/Section.h"
+#include "Common/Config/SettingInfo.h"
 
 namespace Config
 {
@@ -38,20 +39,20 @@ void InvokeConfigChangedCallbacks();
 void Load();
 void Save();
 
-// Often used functions for getting or setting configuration on the base layer for the main system
+// Common Case: Reading values from the meta layer
 template <typename T>
-T Get(const std::string& section_name, const std::string& key, const T& default_value)
+T Get(const SettingInfo<T>& info)
 {
-  auto base_layer = GetLayer(Config::LayerType::Base);
-  return base_layer->GetOrCreateSection(Config::System::Main, section_name)
-      ->Get(key, default_value);
+  auto meta_layer = GetLayer(Config::LayerType::Meta);
+  return meta_layer->GetOrCreateSection(info.system, info.section_name)
+          ->Get(info.key, info.default_value);
 }
 
 template <typename T>
-void Set(const std::string& section_name, const std::string& key, const T& value)
+void Set(LayerType layer, const SettingInfo<T>& info, const T& value)
 {
-  auto base_layer = GetLayer(Config::LayerType::Base);
-  base_layer->GetOrCreateSection(Config::System::Main, section_name)->Set(key, value);
+  GetLayer(layer)->GetOrCreateSection(info.system, info.section_name)
+          ->Set(info.key, value);
 }
 
 void Init();
