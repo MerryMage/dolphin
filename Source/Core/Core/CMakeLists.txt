@@ -3,6 +3,7 @@ set(SRCS
   Analytics.cpp
   ARDecrypt.cpp
   BootManager.cpp
+  Config.cpp
   ConfigManager.cpp
   Core.cpp
   CoreTiming.cpp
