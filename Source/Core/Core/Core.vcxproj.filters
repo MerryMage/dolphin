@@ -897,6 +897,9 @@
     <ClCompile Include="ConfigLoaders\NetPlayConfigLoader.cpp">
       <Filter>ConfigLoader</Filter>
     </ClCompile>
+    <ClCompile Include="ConfigLoaders\IsSettingSaveable.cpp">
+      <Filter>ConfigLoader</Filter>
+    </ClCompile>
     <ClCompile Include="Config.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -1543,6 +1546,9 @@
       <Filter>ConfigLoader</Filter>
     </ClInclude>
     <ClInclude Include="Config.h" />
+    <ClInclude Include="ConfigLoaders\IsSettingSaveable.h">
+      <Filter>ConfigLoader</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />
