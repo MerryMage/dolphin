@@ -424,6 +424,7 @@ void Stop()
 
 void RestoreConfig()
 {
+  Config::ClearCurrentRunLayer();
   Config::RemoveLayer(Config::LayerType::Movie);
   Config::RemoveLayer(Config::LayerType::Netplay);
   Config::RemoveLayer(Config::LayerType::GlobalGame);
