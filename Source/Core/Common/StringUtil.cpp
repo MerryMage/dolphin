@@ -226,7 +226,8 @@ std::string StripQuotes(const std::string& s)
     return s;
 }
 
-bool TryParse(const std::string& str, u32* const output)
+template <>
+std::optional<u32> TryParse<u32>(const std::string& str)
 {
   char* endptr = nullptr;
 
@@ -236,21 +237,21 @@ bool TryParse(const std::string& str, u32* const output)
   unsigned long value = strtoul(str.c_str(), &endptr, 0);
 
   if (!endptr || *endptr)
-    return false;
+    return std::nullopt;
 
   if (errno == ERANGE)
-    return false;
+    return std::nullopt;
 
 #if ULONG_MAX > UINT_MAX
   if (value >= 0x100000000ull && value <= 0xFFFFFFFF00000000ull)
-    return false;
+    return std::nullopt;
 #endif
 
-  *output = static_cast<u32>(value);
-  return true;
+  return static_cast<u32>(value);
 }
 
-bool TryParse(const std::string& str, u64* const output)
+template <>
+std::optional<u64> TryParse<u64>(const std::string& str)
 {
   char* end_ptr = nullptr;
 
@@ -260,27 +261,25 @@ bool TryParse(const std::string& str, u64* const output)
   u64 value = strtoull(str.c_str(), &end_ptr, 0);
 
   if (end_ptr == nullptr || *end_ptr != '\0')
-    return false;
+    return std::nullopt;
 
   if (errno == ERANGE)
-    return false;
+    return std::nullopt;
 
-  *output = value;
-  return true;
+  return value;
 }
 
-bool TryParse(const std::string& str, bool* const output)
+template <>
+std::optional<bool> TryParse<bool>(const std::string& str)
 {
-  float value;
-  const bool is_valid_float = TryParse(str, &value);
-  if ((is_valid_float && value == 1) || !strcasecmp("true", str.c_str()))
-    *output = true;
-  else if ((is_valid_float && value == 0) || !strcasecmp("false", str.c_str()))
-    *output = false;
-  else
+  const auto float_value = TryParse<float>(str);
+
+  if ((float_value && *float_value == 1) || !strcasecmp("true", str.c_str()))
+    return true;
+  if ((float_value && *float_value == 0) || !strcasecmp("false", str.c_str()))
     return false;
 
-  return true;
+  return std::nullopt;
 }
 
 std::string StringFromInt(int value)

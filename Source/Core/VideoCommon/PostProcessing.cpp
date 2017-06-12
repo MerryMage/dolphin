@@ -228,17 +228,17 @@ void PostProcessingShaderConfiguration::LoadOptions(const std::string& code)
 
         if (option.m_type == ConfigurationOption::OptionType::OPTION_BOOL)
         {
-          TryParse(string_option.second, &option.m_bool_value);
+          option.m_bool_value = TryParse<bool>(string_option.second).value_or(false);
         }
         else if (option.m_type == ConfigurationOption::OptionType::OPTION_INTEGER)
         {
-          TryParseVector(string_option.second, output_integer);
+          *output_integer = TryParseVector<s32>(string_option.second).value_or(std::vector<s32>{});
           if (output_integer->size() > 4)
             output_integer->erase(output_integer->begin() + 4, output_integer->end());
         }
         else if (option.m_type == ConfigurationOption::OptionType::OPTION_FLOAT)
         {
-          TryParseVector(string_option.second, output_float);
+          *output_float = TryParseVector<float>(string_option.second).value_or(std::vector<float>{});
           if (output_float->size() > 4)
             output_float->erase(output_float->begin() + 4, output_float->end());
         }
@@ -267,7 +267,7 @@ void PostProcessingShaderConfiguration::LoadOptionsConfiguration()
       std::string value;
       ini.GetOrCreateSection(section)->Get(it.second.m_option_name, &value);
       if (value != "")
-        TryParseVector(value, &it.second.m_integer_values);
+        it.second.m_integer_values = TryParseVector<int>(value).value_or(std::vector<int>{});
     }
     break;
     case ConfigurationOption::OptionType::OPTION_FLOAT:
@@ -275,7 +275,7 @@ void PostProcessingShaderConfiguration::LoadOptionsConfiguration()
       std::string value;
       ini.GetOrCreateSection(section)->Get(it.second.m_option_name, &value);
       if (value != "")
-        TryParseVector(value, &it.second.m_float_values);
+        it.second.m_float_values = TryParseVector<float>(value).value_or(std::vector<float>{});
     }
     break;
     }

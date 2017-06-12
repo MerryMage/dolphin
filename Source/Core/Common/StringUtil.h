@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstddef>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -59,12 +60,8 @@ std::string ThousandSeparate(I value, int spaces = 0)
 std::string StringFromInt(int value);
 std::string StringFromBool(bool value);
 
-bool TryParse(const std::string& str, bool* output);
-bool TryParse(const std::string& str, u32* output);
-bool TryParse(const std::string& str, u64* output);
-
 template <typename N>
-static bool TryParse(const std::string& str, N* const output)
+std::optional<N> TryParse(const std::string& str)
 {
   std::istringstream iss(str);
   // is this right? not doing this breaks reading floats on locales that use different decimal
@@ -72,30 +69,37 @@ static bool TryParse(const std::string& str, N* const output)
   iss.imbue(std::locale("C"));
 
   N tmp = 0;
-  if (iss >> tmp)
-  {
-    *output = tmp;
-    return true;
-  }
-  else
-    return false;
+  return (iss >> tmp) ? std::make_optional<N>(tmp) : std::nullopt;
 }
 
+template<>
+std::optional<bool> TryParse<bool>(const std::string& str);
+
+template<>
+std::optional<u32> TryParse<u32>(const std::string& str);
+
+template<>
+std::optional<u64> TryParse<u64>(const std::string& str);
+
 template <typename N>
-bool TryParseVector(const std::string& str, std::vector<N>* output, const char delimiter = ',')
+std::optional<std::vector<N>> TryParseVector(const std::string& str, const char delimiter = ',')
 {
-  output->clear();
+  std::vector<N> output;
   std::istringstream buffer(str);
   std::string variable;
 
   while (std::getline(buffer, variable, delimiter))
   {
-    N tmp = 0;
-    if (!TryParse(variable, &tmp))
-      return false;
-    output->push_back(tmp);
+    if (auto tmp = TryParse<N>(variable))
+    {
+      output.emplace_back(*tmp);
+    }
+    else
+    {
+      return std::nullopt;
+    }
   }
-  return true;
+  return output;
 }
 
 // Generates an hexdump-like representation of a binary data blob.

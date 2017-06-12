@@ -157,11 +157,14 @@ bool IniFile::Section::Get(const std::string& key, std::vector<std::string>* out
 bool IniFile::Section::Get(const std::string& key, int* value, int defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<int>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = defaultValue;
   return false;
 }
@@ -169,11 +172,14 @@ bool IniFile::Section::Get(const std::string& key, int* value, int defaultValue)
 bool IniFile::Section::Get(const std::string& key, s64* value, s64 default_value) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<s64>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = default_value;
   return false;
 }
@@ -181,11 +187,14 @@ bool IniFile::Section::Get(const std::string& key, s64* value, s64 default_value
 bool IniFile::Section::Get(const std::string& key, u32* value, u32 defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<u32>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = defaultValue;
   return false;
 }
@@ -193,11 +202,14 @@ bool IniFile::Section::Get(const std::string& key, u32* value, u32 defaultValue)
 bool IniFile::Section::Get(const std::string& key, u64* value, u64 default_value) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<u64>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = default_value;
   return false;
 }
@@ -205,11 +217,14 @@ bool IniFile::Section::Get(const std::string& key, u64* value, u64 default_value
 bool IniFile::Section::Get(const std::string& key, bool* value, bool defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<bool>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = defaultValue;
   return false;
 }
@@ -217,11 +232,14 @@ bool IniFile::Section::Get(const std::string& key, bool* value, bool defaultValu
 bool IniFile::Section::Get(const std::string& key, float* value, float defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<float>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = defaultValue;
   return false;
 }
@@ -229,11 +247,14 @@ bool IniFile::Section::Get(const std::string& key, float* value, float defaultVa
 bool IniFile::Section::Get(const std::string& key, double* value, double defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
-
-  if (retval && TryParse(temp, value))
-    return true;
-
+  if (Get(key, &temp))
+  {
+    if (auto v = TryParse<double>(temp))
+    {
+      *value = *v;
+      return true;
+    }
+  }
   *value = defaultValue;
   return false;
 }

@@ -232,22 +232,22 @@ void CMemoryWindow::OnSetMemoryValue(wxCommandEvent& event)
   }
 
   std::string str_addr = WxStrToStr(m_address_search_ctrl->GetValue());
-  u32 addr;
-  if (!TryParse("0x" + str_addr, &addr))
+  auto addr = TryParse<u32>("0x" + str_addr);
+  if (!addr)
   {
     WxUtils::ShowErrorDialog(wxString::Format(_("Invalid address: %s"), str_addr.c_str()));
     return;
   }
 
   std::string str_val = WxStrToStr(m_value_text_ctrl->GetValue());
-  u32 val;
-  if (!TryParse("0x" + str_val, &val))
+  auto val = TryParse<u32>("0x" + str_val);
+  if (!val)
   {
     WxUtils::ShowErrorDialog(wxString::Format(_("Invalid value: %s"), str_val.c_str()));
     return;
   }
 
-  PowerPC::HostWrite_U32(val, addr);
+  PowerPC::HostWrite_U32(*val, *addr);
   m_memory_view->Refresh();
 }
 

@@ -91,16 +91,18 @@ void LoadPatchSection(const std::string& section, std::vector<Patch>& patches, I
 
         if (items.size() >= 3)
         {
-          PatchEntry pE;
-          bool success = true;
-          success &= TryParse(items[0], &pE.address);
-          success &= TryParse(items[2], &pE.value);
+          auto maybe_address = TryParse<u32>(items[0]);
+          auto maybe_value = TryParse<u32>(items[2]);
+          bool success = maybe_value && maybe_address;
 
+          PatchEntry pE;
           pE.type = PatchType(std::find(PatchTypeStrings, PatchTypeStrings + 3, items[1]) -
                               PatchTypeStrings);
           success &= (pE.type != (PatchType)3);
           if (success)
           {
+            pE.address = *maybe_address;
+            pE.value = *maybe_value;
             currentPatch.entries.push_back(pE);
           }
         }
@@ -124,14 +126,11 @@ static void LoadSpeedhacks(const std::string& section, IniFile& ini)
     ini.GetOrCreateSection(section)->Get(key, &value, "BOGUS");
     if (value != "BOGUS")
     {
-      u32 address;
-      u32 cycles;
-      bool success = true;
-      success &= TryParse(key, &address);
-      success &= TryParse(value, &cycles);
-      if (success)
+      auto maybe_address = TryParse<u32>(key);
+      auto maybe_cycles = TryParse<u32>(value);
+      if (maybe_address && maybe_cycles)
       {
-        speedHacks[address] = (int)cycles;
+        speedHacks[*maybe_address] = (int)*maybe_cycles;
       }
     }
   }

@@ -115,10 +115,14 @@ bool Section::Get(const std::string& key, std::string* value,
 bool Section::Get(const std::string& key, int* value, int defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
+  if (!Get(key, &temp))
+    return false;
 
-  if (retval && TryParse(temp, value))
+  if (auto v = TryParse<int>(temp))
+  {
+    *value = *v;
     return true;
+  }
 
   *value = defaultValue;
   return false;
@@ -127,10 +131,14 @@ bool Section::Get(const std::string& key, int* value, int defaultValue) const
 bool Section::Get(const std::string& key, u32* value, u32 defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
+  if (!Get(key, &temp))
+    return false;
 
-  if (retval && TryParse(temp, value))
+  if (auto v = TryParse<u32>(temp))
+  {
+    *value = *v;
     return true;
+  }
 
   *value = defaultValue;
   return false;
@@ -139,10 +147,14 @@ bool Section::Get(const std::string& key, u32* value, u32 defaultValue) const
 bool Section::Get(const std::string& key, bool* value, bool defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
+  if (!Get(key, &temp))
+    return false;
 
-  if (retval && TryParse(temp, value))
+  if (auto v = TryParse<bool>(temp))
+  {
+    *value = *v;
     return true;
+  }
 
   *value = defaultValue;
   return false;
@@ -151,10 +163,14 @@ bool Section::Get(const std::string& key, bool* value, bool defaultValue) const
 bool Section::Get(const std::string& key, float* value, float defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
+  if (!Get(key, &temp))
+    return false;
 
-  if (retval && TryParse(temp, value))
+  if (auto v = TryParse<float>(temp))
+  {
+    *value = *v;
     return true;
+  }
 
   *value = defaultValue;
   return false;
@@ -163,10 +179,14 @@ bool Section::Get(const std::string& key, float* value, float defaultValue) cons
 bool Section::Get(const std::string& key, double* value, double defaultValue) const
 {
   std::string temp;
-  bool retval = Get(key, &temp);
+  if (!Get(key, &temp))
+    return false;
 
-  if (retval && TryParse(temp, value))
+  if (auto v = TryParse<double>(temp))
+  {
+    *value = *v;
     return true;
+  }
 
   *value = defaultValue;
   return false;

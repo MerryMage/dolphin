@@ -787,15 +787,13 @@ void CFrame::LoadIniPerspectives()
     SplitString(_Heights, ',', _SHeight);
     for (auto& Width : _SWidth)
     {
-      int _Tmp;
-      if (TryParse(Width, &_Tmp))
-        Tmp.width.push_back(_Tmp);
+      if (auto tmp = TryParse<int>(Width))
+        Tmp.width.push_back(*tmp);
     }
     for (auto& Height : _SHeight)
     {
-      int _Tmp;
-      if (TryParse(Height, &_Tmp))
-        Tmp.height.push_back(_Tmp);
+      if (auto tmp = TryParse<int>(Height))
+        Tmp.height.push_back(*tmp);
     }
     m_perspectives.push_back(Tmp);
   }

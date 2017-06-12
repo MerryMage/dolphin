@@ -389,9 +389,8 @@ void CRegTable::SetValue(int row, int col, const wxString& strNewVal)
   {
     if ((static_cast<size_t>(row - 32) < NUM_SPECIALS) && col == 1)
     {
-      u32 new_val = 0;
-      if (TryParse("0x" + WxStrToStr(strNewVal), &new_val))
-        SetSpecialRegValue(row - 32, new_val);
+      if (auto new_val = TryParse<u32>("0x" + WxStrToStr(strNewVal)))
+        SetSpecialRegValue(row - 32, *new_val);
     }
   }
 }
@@ -480,7 +479,7 @@ void CRegisterView::OnMouseDownR(wxGridEvent& event)
   m_selectedColumn = event.GetCol();
 
   wxString strNewVal = m_register_table->GetValue(m_selectedRow, m_selectedColumn);
-  TryParse("0x" + WxStrToStr(strNewVal), &m_selectedAddress);
+  m_selectedAddress = TryParse<u32>("0x" + WxStrToStr(strNewVal)).value_or(0);
 
   wxMenu menu;
   // i18n: This kind of "watch" is used for watching emulated memory.

@@ -130,8 +130,8 @@ wxString CWatchTable::GetValue(int row, int col)
 
 void CWatchTable::SetValue(int row, int col, const wxString& strNewVal)
 {
-  u32 newVal = 0;
-  if (col == 0 || TryParse("0x" + WxStrToStr(strNewVal), &newVal))
+  auto new_val = TryParse<u32>("0x" + WxStrToStr(strNewVal));
+  if (col == 0 || new_val)
   {
     if (row > 0)
     {
@@ -146,18 +146,18 @@ void CWatchTable::SetValue(int row, int col, const wxString& strNewVal)
       {
         if (row > (int)PowerPC::watches.GetWatches().size())
         {
-          AddWatchAddr(row, newVal);
+          AddWatchAddr(row, new_val.value_or(0));
           row = (int)PowerPC::watches.GetWatches().size();
         }
         else
         {
-          UpdateWatchAddr(row, newVal);
+          UpdateWatchAddr(row, new_val.value_or(0));
         }
         break;
       }
       case 2:
       {
-        SetWatchValue(row, newVal);
+        SetWatchValue(row, new_val.value_or(0));
         break;
       }
       default:
@@ -254,7 +254,7 @@ void CWatchView::OnMouseDownR(wxGridEvent& event)
   if (col == 1 || col == 2)
   {
     wxString strNewVal = GetValueByRowCol(row, col);
-    TryParse("0x" + WxStrToStr(strNewVal), &m_selectedAddress);
+    m_selectedAddress = TryParse<u32>("0x" + WxStrToStr(strNewVal)).value_or(0);
   }
 
   wxMenu menu;
@@ -287,9 +287,10 @@ void CWatchView::OnPopupMenu(wxCommandEvent& event)
   case IDM_DELETEWATCH:
   {
     wxString strNewVal = GetValueByRowCol(m_selectedRow, 1);
-    if (TryParse("0x" + WxStrToStr(strNewVal), &m_selectedAddress))
+    if (auto maybe_selected_address = TryParse<u32>("0x" + WxStrToStr(strNewVal)))
     {
-      PowerPC::watches.Remove(m_selectedAddress);
+      m_selectedAddress = *maybe_selected_address;
+      PowerPC::watches.Remove(*maybe_selected_address);
       if (watch_window)
         watch_window->NotifyUpdate();
       Refresh();
