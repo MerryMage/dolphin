@@ -158,8 +158,13 @@ void HiresTexture::Prefetch()
     if (base_filename.find("_mip") == std::string::npos)
     {
       {
-        // try to get this mutex first, so the video thread is allow to get the real mutex faster
         std::unique_lock<std::mutex> lk(s_textureCacheAcquireMutex);
+        // Releasing the acquisition mutex here allows the video thread to lock it anytime after
+        // this point. If the video thread requires s_textureCacheMutex, it will first lock
+        // s_textureCacheAcquireMutex, which prevents prefetch (i.e. this thread) from progressing.
+        // This prevents prefetch from hogging s_textureCacheMutex in a tight loop, and effectively
+        // gives higher priority to the video thread by allowing HiresTexture::Search to run at
+        // least once per iteration of this loop.
       }
       std::unique_lock<std::mutex> lk(s_textureCacheMutex);
 
