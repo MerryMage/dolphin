@@ -9,6 +9,10 @@ if ! [ -x "$(command -v git)" ]; then
   exit 1
 fi
 
+if [ -e "/usr/local/opt/clang-format@3.8/bin/clang-format" ]; then
+  PATH="/usr/local/opt/clang-format@3.8/bin:$PATH"
+fi
+
 REQUIRED_CLANG_FORMAT_MAJOR=3
 REQUIRED_CLANG_FORMAT_MINOR=8
 
