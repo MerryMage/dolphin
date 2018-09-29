@@ -507,8 +507,7 @@ void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
   if (a != b)
   {
     gpr.FlushLockX(RCX);
-    if (fprf)
-      XOR(32, R(ECX), R(ECX));
+    XOR(32, R(ECX), R(ECX));
   }
 
   fpr.Lock(a, b);
@@ -545,12 +544,10 @@ void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
 
     if (fprf)
     {
-      MOV(32, R(RSCRATCH), Imm32(0));
       SETcc(CC_NC, R(RSCRATCH));
-      LEA(32, RSCRATCH,
-          MScaled(RSCRATCH, PowerPC::CR_EQ_BIT - PowerPC::CR_SO_BIT,
-                  PowerPC::CR_SO_BIT + FPRF_SHIFT));
-      BTS(32, PPCSTATE(fpscr), R(RSCRATCH));
+      MOVZX(32, 8, RSCRATCH, R(RSCRATCH));
+      ADD(32, R(RSCRATCH), Imm8(1));
+      OR(32, PPCSTATE(fpscr), R(RSCRATCH));
     }
 
     fpr.UnlockAll();
@@ -558,18 +555,22 @@ void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
   }
 
   SETcc(CC_Z, R(CL));
-
+  LEA(32, ECX, MRegSum(ECX, ECX));
+  ADC(32, R(ECX), Imm8(1));
   if (fprf)
   {
-    RCL(8, R(CL), Imm8(1));  // CL = ZF:CF
-    LEA(32, RSCRATCH, MDisp(CL, FPRF_SHIFT));
-    SHL(8, R(CL), Imm8(2));
-    BTS(32, PPCSTATE(fpscr), R(RSCRATCH));
+    MOV(32, R(RSCRATCH), Imm32(1 << (FPRF_SHIFT - 1)));
+    if (cpu_info.bBMI2)
+    {
+      SHLX(32, RSCRATCH, R(RSCRATCH), ECX);
+    }
+    else
+    {
+      SHL(32, R(RSCRATCH), R(CL));
+    }
+    OR(32, PPCSTATE(fpscr), R(RSCRATCH));
   }
-  else
-  {
-    RCL(8, R(CL), Imm8(3));  // CL = ZF:CF:00
-  }
+  SHL(32, R(CL), Imm8(2));
 
   const auto cr_to_table_entry = [](int value) {
     u64 cr_val = PowerPC::PPCCRToInternal(value);
@@ -585,7 +586,6 @@ void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
   table |= cr_to_table_entry(output[PowerPC::CR_LT_BIT]) << 1;
 
   MOV(32, R(RSCRATCH), Imm32(table));  // ZF:CF -> CR table
-  ADD(8, R(CL), Imm8(4));
   ROR(64, R(RSCRATCH), R(CL));
   AND(64, R(RSCRATCH), Imm32(0x80000001));
   MOV(64, PPCSTATE(cr_val[crf]), R(RSCRATCH));
