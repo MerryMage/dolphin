@@ -504,6 +504,13 @@ void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
     output[3 - (next.CRBB & 3)] |= 1 << dst;
   }
 
+  if (a != b)
+  {
+    gpr.FlushLockX(RCX);
+    if (fprf)
+      XOR(32, R(ECX), R(ECX));
+  }
+
   fpr.Lock(a, b);
   fpr.BindToRegister(b, true, false);
 
@@ -522,61 +529,69 @@ void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
     UCOMISD(fpr.RX(b), fpr.R(a));
   }
 
-  FixupBranch pNaN, pLesser, pGreater;
-  FixupBranch continue1, continue2, continue3;
+  //              ----- x64 flags -----    CR  FPRF
+  //               ZF  PF  CF    ZF:CF    bit   bit
+  // Unordered      1   1   1      3        0    12
+  // Greater than   0   0   1      1        2    14
+  // Less than      0   0   0      0        3    15
+  // Equal          1   0   0      2        1    13
 
-  if (a != b)
+  if (a == b)
   {
-    // if B > A, goto Lesser's jump target
-    pLesser = J_CC(CC_A);
-  }
+    MOV(64, R(RSCRATCH), Imm64(PowerPC::PPCCRToInternal(output[PowerPC::CR_SO_BIT])));
+    MOV(64, R(RSCRATCH2), Imm64(PowerPC::PPCCRToInternal(output[PowerPC::CR_EQ_BIT])));
+    CMOVcc(64, RSCRATCH, R(RSCRATCH2), CC_NC);
+    MOV(64, PPCSTATE(cr_val[crf]), R(RSCRATCH));
 
-  // if (B != B) or (A != A), goto NaN's jump target
-  pNaN = J_CC(CC_P);
-
-  if (a != b)
-  {
-    // if B < A, goto Greater's jump target
-    // JB can't precede the NaN check because it doesn't test ZF
-    pGreater = J_CC(CC_B);
-  }
-
-  MOV(64, R(RSCRATCH), Imm64(PowerPC::PPCCRToInternal(output[PowerPC::CR_EQ_BIT])));
-  if (fprf)
-    OR(32, PPCSTATE(fpscr), Imm32(PowerPC::CR_EQ << FPRF_SHIFT));
-
-  continue1 = J();
-
-  SetJumpTarget(pNaN);
-  MOV(64, R(RSCRATCH), Imm64(PowerPC::PPCCRToInternal(output[PowerPC::CR_SO_BIT])));
-  if (fprf)
-    OR(32, PPCSTATE(fpscr), Imm32(PowerPC::CR_SO << FPRF_SHIFT));
-
-  if (a != b)
-  {
-    continue2 = J();
-
-    SetJumpTarget(pGreater);
-    MOV(64, R(RSCRATCH), Imm64(PowerPC::PPCCRToInternal(output[PowerPC::CR_GT_BIT])));
     if (fprf)
-      OR(32, PPCSTATE(fpscr), Imm32(PowerPC::CR_GT << FPRF_SHIFT));
-    continue3 = J();
+    {
+      MOV(32, R(RSCRATCH), Imm32(0));
+      SETcc(CC_NC, R(RSCRATCH));
+      LEA(32, RSCRATCH,
+          MScaled(RSCRATCH, PowerPC::CR_EQ_BIT - PowerPC::CR_SO_BIT,
+                  PowerPC::CR_SO_BIT + FPRF_SHIFT));
+      BTS(32, PPCSTATE(fpscr), R(RSCRATCH));
+    }
 
-    SetJumpTarget(pLesser);
-    MOV(64, R(RSCRATCH), Imm64(PowerPC::PPCCRToInternal(output[PowerPC::CR_LT_BIT])));
-    if (fprf)
-      OR(32, PPCSTATE(fpscr), Imm32(PowerPC::CR_LT << FPRF_SHIFT));
+    fpr.UnlockAll();
+    return;
   }
 
-  SetJumpTarget(continue1);
-  if (a != b)
+  SETcc(CC_Z, R(CL));
+
+  if (fprf)
   {
-    SetJumpTarget(continue2);
-    SetJumpTarget(continue3);
+    RCL(8, R(CL), Imm8(1));  // CL = ZF:CF
+    LEA(32, RSCRATCH, MDisp(CL, FPRF_SHIFT));
+    SHL(8, R(CL), Imm8(2));
+    BTS(32, PPCSTATE(fpscr), R(RSCRATCH));
+  }
+  else
+  {
+    RCL(8, R(CL), Imm8(3));  // CL = ZF:CF:00
   }
 
+  const auto cr_to_table_entry = [](int value) {
+    u64 cr_val = PowerPC::PPCCRToInternal(value);
+    u32 entry = (cr_val >> 61) & 7;
+    entry |= ((cr_val & 0xFFFFFFFF) != 0) ? 8 : 0;
+    return entry & 0xF;
+  };
+
+  u32 table = 1;
+  table |= cr_to_table_entry(output[PowerPC::CR_SO_BIT]) << 13;
+  table |= cr_to_table_entry(output[PowerPC::CR_EQ_BIT]) << 9;
+  table |= cr_to_table_entry(output[PowerPC::CR_GT_BIT]) << 5;
+  table |= cr_to_table_entry(output[PowerPC::CR_LT_BIT]) << 1;
+
+  MOV(32, R(RSCRATCH), Imm32(table));  // ZF:CF -> CR table
+  ADD(8, R(CL), Imm8(4));
+  ROR(64, R(RSCRATCH), R(CL));
+  AND(64, R(RSCRATCH), Imm32(0x80000001));
   MOV(64, PPCSTATE(cr_val[crf]), R(RSCRATCH));
+
   fpr.UnlockAll();
+  gpr.UnlockAllX();
 }
 
 void Jit64::fcmpX(UGeckoInstruction inst)

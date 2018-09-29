@@ -641,7 +641,7 @@ void SConfig::LoadAutoUpdateSettings(IniFile& ini)
 {
   IniFile::Section* section = ini.GetOrCreateSection("AutoUpdate");
 
-  section->Get("UpdateTrack", &m_auto_update_track, SCM_UPDATE_TRACK_STR);
+  section->Get("UpdateTrack", &m_auto_update_track, "SCM_UPDATE_TRACK_STR");
   section->Get("HashOverride", &m_auto_update_hash_override, "");
 }
 
