@@ -525,6 +525,7 @@
     <ClInclude Include="PowerPC\Jit64Common\Jit64AsmCommon.h" />
     <ClInclude Include="PowerPC\Jit64Common\Jit64Base.h" />
     <ClInclude Include="PowerPC\Jit64Common\Jit64PowerPCState.h" />
+    <ClInclude Include="PowerPC\Jit64Common\RegRep.h" />
     <ClInclude Include="PowerPC\Jit64Common\TrampolineCache.h" />
     <ClInclude Include="PowerPC\Jit64Common\TrampolineInfo.h" />
     <ClInclude Include="PowerPC\JitCommon\JitAsmCommon.h" />

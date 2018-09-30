@@ -9,16 +9,10 @@
 
 #include "Common/Assert.h"
 #include "Common/x64Emitter.h"
+#include "Core/PowerPC/Jit64Common/RegRep.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 
 class Jit64;
-
-/// Value representation
-enum class RegRep
-{
-  /// Canonical representation
-  Canonical,
-};
 
 class PPCCachedReg
 {

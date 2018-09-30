@@ -16,19 +16,62 @@ FPURegCache::FPURegCache(Jit64& jit) : RegCache{jit}
 
 void FPURegCache::StoreRegister(size_t preg, const OpArg& new_loc, RegRep src_rep)
 {
-  ASSERT(src_rep == RegRep::Canonical);
-  m_emitter->MOVAPD(new_loc, m_regs[preg].Location().GetSimpleReg());
+  X64Reg src = m_regs[preg].Location().GetSimpleReg();
+  switch (src_rep)
+  {
+  case RegRep::Canonical:
+    m_emitter->MOVAPD(new_loc, src);
+    return;
+  case RegRep::Singles:
+    m_emitter->CVTPS2PD(src, ::Gen::R(src));
+    m_emitter->MOVAPD(new_loc, src);
+    m_emitter->CVTPD2PS(src, ::Gen::R(src));
+    return;
+  }
+  ASSERT_MSG(DYNA_REC, false, "Unsupported representation");
 }
 
 void FPURegCache::LoadRegister(size_t preg, X64Reg new_loc, RegRep dest_rep)
 {
-  ASSERT(dest_rep == RegRep::Canonical);
-  m_emitter->MOVAPD(new_loc, m_regs[preg].Location());
+  switch (dest_rep)
+  {
+  case RegRep::Canonical:
+    m_emitter->MOVAPD(new_loc, m_regs[preg].Location());
+    return;
+  case RegRep::Singles:
+    m_emitter->CVTPD2PS(new_loc, m_regs[preg].Location());
+    return;
+  }
+  ASSERT_MSG(DYNA_REC, false, "Unsupported representation");
 }
 
 void FPURegCache::Convert(Gen::X64Reg loc, RegRep src_rep, RegRep dest_rep)
 {
-  ASSERT(false);
+  ASSERT(src_rep != dest_rep);
+
+  // Convert to canonical form
+  switch (src_rep)
+  {
+  case RegRep::Canonical:
+    break;
+  case RegRep::Singles:
+    m_emitter->CVTPS2PD(loc, ::Gen::R(loc));
+    break;
+  default:
+    ASSERT_MSG(DYNA_REC, false, "Unsupported representation");
+  }
+
+  // Convert from canonical form
+  switch (dest_rep)
+  {
+  case RegRep::Canonical:
+    break;
+  case RegRep::Singles:
+    m_emitter->CVTPD2PS(loc, ::Gen::R(loc));
+    break;
+  default:
+    ASSERT_MSG(DYNA_REC, false, "Unsupported representation");
+  }
 }
 
 const X64Reg* FPURegCache::GetAllocationOrder(size_t* count) const
