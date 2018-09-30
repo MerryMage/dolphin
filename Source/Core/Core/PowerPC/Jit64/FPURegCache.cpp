@@ -14,14 +14,21 @@ FPURegCache::FPURegCache(Jit64& jit) : RegCache{jit}
 {
 }
 
-void FPURegCache::StoreRegister(size_t preg, const OpArg& new_loc)
+void FPURegCache::StoreRegister(size_t preg, const OpArg& new_loc, RegRep src_rep)
 {
+  ASSERT(src_rep == RegRep::Canonical);
   m_emitter->MOVAPD(new_loc, m_regs[preg].Location().GetSimpleReg());
 }
 
-void FPURegCache::LoadRegister(size_t preg, X64Reg new_loc)
+void FPURegCache::LoadRegister(size_t preg, X64Reg new_loc, RegRep dest_rep)
 {
+  ASSERT(dest_rep == RegRep::Canonical);
   m_emitter->MOVAPD(new_loc, m_regs[preg].Location());
+}
+
+void FPURegCache::Convert(Gen::X64Reg loc, RegRep src_rep, RegRep dest_rep)
+{
+  ASSERT(false);
 }
 
 const X64Reg* FPURegCache::GetAllocationOrder(size_t* count) const

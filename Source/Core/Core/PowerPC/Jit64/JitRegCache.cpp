@@ -58,7 +58,7 @@ void RegCache::Flush(FlushMode mode, BitSet32 regsToFlush)
   for (unsigned int i : regsToFlush)
   {
     ASSERT_MSG(DYNA_REC, !m_regs[i].IsLocked(), "Someone forgot to unlock PPC reg %u (X64 reg %i).",
-               i, RX(i));
+               i, XFor(i));
 
     switch (m_regs[i].IsAway())
     {
@@ -124,7 +124,7 @@ void RegCache::KillImmediate(size_t preg, bool doLoad, bool makeDirty)
   case PPCCachedReg::AwayLocation::NotAway:
     break;
   case PPCCachedReg::AwayLocation::Bound:
-    m_xregs[RX(preg)].MakeDirty(makeDirty);
+    m_xregs[XFor(preg)].MakeDirty(makeDirty);
     break;
   case PPCCachedReg::AwayLocation::Immediate:
     BindToRegister(preg, doLoad, makeDirty);
@@ -132,7 +132,7 @@ void RegCache::KillImmediate(size_t preg, bool doLoad, bool makeDirty)
   }
 }
 
-void RegCache::BindToRegister(size_t i, bool doLoad, bool makeDirty)
+void RegCache::BindToRegister(size_t i, bool doLoad, bool makeDirty, RegRep finalRep, RegRep loadRep)
 {
   if (!m_regs[i].IsBound())
   {
@@ -146,7 +146,7 @@ void RegCache::BindToRegister(size_t i, bool doLoad, bool makeDirty)
 
     if (doLoad)
     {
-      LoadRegister(i, xr);
+      LoadRegister(i, xr, loadRep);
     }
 
     ASSERT_MSG(DYNA_REC,
@@ -154,16 +154,21 @@ void RegCache::BindToRegister(size_t i, bool doLoad, bool makeDirty)
                             [xr](const auto& r) { return r.Location().IsSimpleReg(xr); }),
                "Xreg %i already bound", xr);
 
-    m_regs[i].BoundTo(xr);
+    m_regs[i].BoundTo(xr, finalRep);
   }
   else
   {
     // reg location must be simplereg; memory locations
     // and immediates are taken care of above.
-    m_xregs[RX(i)].MakeDirty(makeDirty);
+    m_xregs[XFor(i)].MakeDirty(makeDirty);
+    if (doLoad && m_regs[i].Rep() != loadRep)
+    {
+      Convert(XFor(i), m_regs[i].Rep(), loadRep);
+    }
+    m_regs[i].Converted(finalRep);
   }
 
-  ASSERT_MSG(DYNA_REC, !m_xregs[RX(i)].IsLocked(), "WTF, this reg should have been flushed");
+  ASSERT_MSG(DYNA_REC, !m_xregs[XFor(i)].IsLocked(), "WTF, this reg should have been flushed");
 }
 
 void RegCache::StoreFromRegister(size_t i, FlushMode mode)
@@ -176,7 +181,7 @@ void RegCache::StoreFromRegister(size_t i, FlushMode mode)
     return;
   case PPCCachedReg::AwayLocation::Bound:
   {
-    X64Reg xr = RX(i);
+    X64Reg xr = XFor(i);
     doStore = m_xregs[xr].IsDirty();
     if (mode == FlushMode::All)
       m_xregs[xr].Flushed();
@@ -188,20 +193,33 @@ void RegCache::StoreFromRegister(size_t i, FlushMode mode)
   }
 
   if (doStore)
-    StoreRegister(i, GetDefaultLocation(i));
+    StoreRegister(i, GetDefaultLocation(i), m_regs[i].Rep());
   if (mode == FlushMode::All)
     m_regs[i].Flushed();
 }
 
-const OpArg& RegCache::R(size_t preg) const
+OpArg RegCache::R(size_t preg, RegRep rep)
 {
+  if (m_regs[preg].IsBound())
+    return ::Gen::R(RX(preg, rep));
+
+  if (rep != m_regs[preg].Rep())
+  {
+    BindToRegister(preg, true, false, rep);
+  }
   return m_regs[preg].Location();
 }
 
-X64Reg RegCache::RX(size_t preg) const
+X64Reg RegCache::RX(size_t preg, RegRep rep)
 {
   ASSERT_MSG(DYNA_REC, m_regs[preg].IsBound(), "Unbound register - %zu", preg);
-  return m_regs[preg].Location().GetSimpleReg();
+
+  if (rep != m_regs[preg].Rep())
+  {
+    Convert(XFor(preg), m_regs[preg].Rep(), rep);
+    m_regs[preg].Converted(rep);
+  }
+  return XFor(preg);
 }
 
 void RegCache::UnlockAll()
@@ -284,6 +302,12 @@ void RegCache::FlushX(X64Reg reg)
   {
     StoreFromRegister(m_xregs[reg].Contents());
   }
+}
+
+X64Reg RegCache::XFor(size_t preg) const
+{
+  ASSERT_MSG(DYNA_REC, m_regs[preg].IsBound(), "Unbound register - %zu", preg);
+  return m_regs[preg].Location().GetSimpleReg();
 }
 
 // Estimate roughly how bad it would be to de-allocate this register. Higher score

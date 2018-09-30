@@ -14,14 +14,21 @@ GPRRegCache::GPRRegCache(Jit64& jit) : RegCache{jit}
 {
 }
 
-void GPRRegCache::StoreRegister(size_t preg, const OpArg& new_loc)
+void GPRRegCache::StoreRegister(size_t preg, const OpArg& new_loc, RegRep src_rep)
 {
+  ASSERT(src_rep == RegRep::Canonical);
   m_emitter->MOV(32, new_loc, m_regs[preg].Location());
 }
 
-void GPRRegCache::LoadRegister(size_t preg, X64Reg new_loc)
+void GPRRegCache::LoadRegister(size_t preg, X64Reg new_loc, RegRep dest_rep)
 {
+  ASSERT(dest_rep == RegRep::Canonical);
   m_emitter->MOV(32, ::Gen::R(new_loc), m_regs[preg].Location());
+}
+
+void GPRRegCache::Convert(Gen::X64Reg loc, RegRep src_rep, RegRep dest_rep)
+{
+  ASSERT(false);
 }
 
 OpArg GPRRegCache::GetDefaultLocation(size_t reg) const

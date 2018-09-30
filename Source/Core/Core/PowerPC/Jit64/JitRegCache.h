@@ -13,6 +13,13 @@
 
 class Jit64;
 
+/// Value representation
+enum class RegRep
+{
+  /// Canonical representation
+  Canonical,
+};
+
 class PPCCachedReg
 {
 public:
@@ -31,6 +38,7 @@ public:
   }
 
   const Gen::OpArg& Location() const { return location; }
+  RegRep Rep() const { return rep; }
 
   AwayLocation IsAway() const
   {
@@ -44,22 +52,31 @@ public:
   bool IsBound() const { return IsAway() == AwayLocation::Bound; }
   bool IsSpeculativeImm() const { return !away && location.IsImm(); }
 
-  void BoundTo(Gen::X64Reg xreg)
+  void BoundTo(Gen::X64Reg xreg, RegRep rep_)
   {
     away = true;
     location = Gen::R(xreg);
+    rep = rep_;
   }
 
   void Flushed()
   {
     away = false;
     location = default_location;
+    rep = RegRep::Canonical;
   }
 
-  void SetToImm32(u32 imm32, bool dirty = true)
+  void SetToImm32(u32 imm32, bool dirty)
   {
     away |= dirty;
     location = Gen::Imm32(imm32);
+    rep = RegRep::Canonical;
+  }
+
+  void Converted(RegRep rep_)
+  {
+    ASSERT(IsBound());
+    rep = rep_;
   }
 
   bool IsLocked() const { return locked; }
@@ -69,6 +86,7 @@ public:
 private:
   Gen::OpArg default_location{};
   Gen::OpArg location{};
+  RegRep rep = RegRep::Canonical;
   bool away = false;  // value not in source register
   bool locked = false;
 };
@@ -95,7 +113,7 @@ public:
   bool IsFree() const { return free && !locked; }
 
   bool IsDirty() const { return dirty; }
-  void MakeDirty(bool makeDirty = true) { dirty |= makeDirty; }
+  void MakeDirty(bool makeDirty) { dirty |= makeDirty; }
 
   bool IsLocked() const { return locked; }
   void Lock() { locked = true; }
@@ -139,11 +157,16 @@ public:
 
   // TODO - instead of doload, use "read", "write"
   // read only will not set dirty flag
-  void BindToRegister(size_t preg, bool doLoad = true, bool makeDirty = true);
+  void BindToRegister(size_t preg, bool doLoad, bool makeDirty, RegRep finalRep, RegRep loadRep);
+  void BindToRegister(size_t preg, bool doLoad = true, bool makeDirty = true,
+                      RegRep rep = RegRep::Canonical)
+  {
+    BindToRegister(preg, doLoad, makeDirty, rep, rep);
+  }
   void StoreFromRegister(size_t preg, FlushMode mode = FlushMode::All);
 
-  const Gen::OpArg& R(size_t preg) const;
-  Gen::X64Reg RX(size_t preg) const;
+  Gen::OpArg R(size_t preg, RegRep rep = RegRep::Canonical);
+  Gen::X64Reg RX(size_t preg, RegRep rep = RegRep::Canonical);
 
   // Register locking.
 
@@ -198,8 +221,9 @@ public:
   int NumFreeRegisters() const;
 
 protected:
-  virtual void StoreRegister(size_t preg, const Gen::OpArg& new_loc) = 0;
-  virtual void LoadRegister(size_t preg, Gen::X64Reg new_loc) = 0;
+  virtual void StoreRegister(size_t preg, const Gen::OpArg& new_loc, RegRep src_rep) = 0;
+  virtual void LoadRegister(size_t preg, Gen::X64Reg new_loc, RegRep dest_rep) = 0;
+  virtual void Convert(Gen::X64Reg loc, RegRep src_rep, RegRep dest_rep) = 0;
 
   virtual const Gen::X64Reg* GetAllocationOrder(size_t* count) const = 0;
 
@@ -207,6 +231,7 @@ protected:
   virtual BitSet32 CountRegsIn(size_t preg, u32 lookahead) const = 0;
 
   void FlushX(Gen::X64Reg reg);
+  Gen::X64Reg XFor(size_t preg) const;
 
   float ScoreRegister(Gen::X64Reg xreg) const;
 
