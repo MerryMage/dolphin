@@ -337,7 +337,8 @@ void Jit64::mfspr(UGeckoInstruction inst)
           MOV(32, gpr.R(d), R(RAX));
         if (nextIndex == SPR_TL)
           MOV(32, gpr.R(n), R(RAX));
-        SHR(64, R(RAX), Imm8(32));
+        if (iIndex == SPR_TU || nextIndex == SPR_TU)
+          SHR(64, R(RAX), Imm8(32));
         if (iIndex == SPR_TU)
           MOV(32, gpr.R(d), R(RAX));
         if (nextIndex == SPR_TU)
