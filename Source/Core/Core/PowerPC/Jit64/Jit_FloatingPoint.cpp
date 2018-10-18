@@ -74,13 +74,13 @@ void Jit64::HandleNaNs(UGeckoInstruction inst, X64Reg xmm_out, X64Reg xmm, X64Re
     SwitchToFarCode();
     SetJumpTarget(handle_nan);
     std::vector<FixupBranch> fixups;
+    XORPD(xmm, R(xmm));
     for (u32 x : inputs)
     {
-      MOVDDUP(xmm, fpr.R(x));
-      UCOMISD(xmm, R(xmm));
+      UCOMISD(xmm, fpr.R(x));
       fixups.push_back(J_CC(CC_P));
     }
-    MOVDDUP(xmm, MConst(psGeneratedQNaN));
+    MOVAPD(xmm, MConst(psGeneratedQNaN));
     for (FixupBranch fixup : fixups)
       SetJumpTarget(fixup);
     FixupBranch done = J(true);
