@@ -877,13 +877,20 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   }
 
   // Forward scan, for flags that need the other direction for calculation.
-  BitSet32 fprIsSingle, fprIsDuplicated, fprIsStoreSafe, gprDefined, gprBlockInputs;
+  BitSet32 fprIsSingle, fprIsDuplicated, fprIsStoreSafe, gprDefined;
   BitSet8 gqrUsed, gqrModified;
+  BitSet32 gprBlockInputsSet, fprBlockInputsSet;
+  std::vector<s8> gprBlockInputs, fprBlockInputs;
   for (u32 i = 0; i < block->m_num_instructions; i++)
   {
     CodeOp& op = code[i];
 
-    gprBlockInputs |= op.regsIn & ~gprDefined;
+    const BitSet32 newBlockInputs = op.regsIn & ~gprDefined;
+    for (auto input : newBlockInputs & ~gprBlockInputsSet)
+    {
+      gprBlockInputs.push_back(static_cast<s8>(input));
+    }
+    gprBlockInputsSet |= newBlockInputs;
     gprDefined |= op.regsOut;
 
     op.fprIsSingle = fprIsSingle;
@@ -891,6 +898,12 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     op.fprIsStoreSafe = fprIsStoreSafe;
     if (op.fregOut >= 0)
     {
+      if (!fprBlockInputsSet[op.fregOut])
+      {
+        fprBlockInputs.push_back(op.fregOut);
+        fprBlockInputsSet[op.fregOut] = true;
+      }
+
       fprIsSingle[op.fregOut] = false;
       fprIsDuplicated[op.fregOut] = false;
       fprIsStoreSafe[op.fregOut] = false;
@@ -938,6 +951,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   }
   block->m_gqr_used = gqrUsed;
   block->m_gqr_modified = gqrModified;
+  block->m_fpr_inputs = fprBlockInputs;
   block->m_gpr_inputs = gprBlockInputs;
   return address;
 }
