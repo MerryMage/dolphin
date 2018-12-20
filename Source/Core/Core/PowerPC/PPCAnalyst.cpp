@@ -830,7 +830,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   // Scan for flag dependencies; assume the next block (or any branch that can leave the block)
   // wants flags, to be safe.
   bool wantsCR0 = true, wantsCR1 = true, wantsFPRF = true, wantsCA = true;
-  BitSet32 fprInUse, gprInUse, gprInReg, fprInXmm;
+  BitSet32 fprInUse, gprInUse, gprInReg, fprInXmm, fprWillBeSet, gprWillBeSet;
   for (int i = block->m_num_instructions - 1; i >= 0; i--)
   {
     CodeOp& op = code[i];
@@ -855,6 +855,8 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     op.fprInUse = fprInUse;
     op.gprInReg = gprInReg;
     op.fprInXmm = fprInXmm;
+    op.gprWillBeSet = gprWillBeSet;
+    op.fprWillBeSet = fprWillBeSet;
     // TODO: if there's no possible endblocks or exceptions in between, tell the regcache
     // we can throw away a register if it's going to be overwritten later.
     gprInUse |= op.regsIn;
@@ -868,6 +870,10 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     gprInUse |= op.regsOut;
     if (op.fregOut >= 0)
       fprInUse[op.fregOut] = true;
+    // These are output by this instruction
+    gprWillBeSet |= op.regsOut;
+    if (op.fregOut >= 0)
+      fprWillBeSet[op.fregOut] = true;
   }
 
   // Forward scan, for flags that need the other direction for calculation.
@@ -936,4 +942,4 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   return address;
 }
 
-}  // namespace
+}  // namespace PPCAnalyst

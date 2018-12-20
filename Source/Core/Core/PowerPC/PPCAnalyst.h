@@ -54,6 +54,10 @@ struct CodeOp  // 16B
   // we do double stores from GPRs, so we don't want to load a PowerPC floating point register into
   // an XMM only to move it again to a GPR afterwards.
   BitSet32 fprInXmm;
+  // which registers will be overwritten by future instructions in this block
+  // (assuming we do not terminate early)
+  BitSet32 fprWillBeSet;
+  BitSet32 gprWillBeSet;
   // whether an fpr is known to be an actual single-precision value at this point in the block.
   BitSet32 fprIsSingle;
   // whether an fpr is known to have identical top and bottom halves (e.g. due to a single
@@ -223,4 +227,4 @@ void FindFunctions(u32 startAddr, u32 endAddr, PPCSymbolDB* func_db);
 bool AnalyzeFunction(u32 startAddr, Common::Symbol& func, u32 max_size = 0);
 bool ReanalyzeFunction(u32 start_addr, Common::Symbol& func, u32 max_size = 0);
 
-}  // namespace
+}  // namespace PPCAnalyst
