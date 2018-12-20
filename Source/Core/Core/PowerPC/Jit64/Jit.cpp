@@ -773,10 +773,11 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     {
       js.fifoBytesSinceCheck = 0;
       js.mustCheckFifo = false;
-      BitSet32 registersInUse = CallerSavedRegistersInUse();
-      ABI_PushRegistersAndAdjustStack(registersInUse, 0);
+      gpr.FlushCallerSave();
+      fpr.FlushCallerSave();
+      ABI_PushRegistersAndAdjustStack({}, 0);
       ABI_CallFunction(GPFifo::FastCheckGatherPipe);
-      ABI_PopRegistersAndAdjustStack(registersInUse, 0);
+      ABI_PopRegistersAndAdjustStack({}, 0);
       gatherPipeIntCheck = true;
     }
 
