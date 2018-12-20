@@ -411,6 +411,19 @@ void RegCache::Flush(BitSet32 pregs)
   }
 }
 
+void RegCache::FlushCallerSave()
+{
+  ASSERT_MSG(
+      DYNA_REC,
+      std::none_of(m_xregs.begin(), m_xregs.end(), [](const auto& x) { return x.IsLocked(); }),
+      "Someone forgot to unlock a X64 reg");
+
+  for (preg_t i : GetCallerSaveXRegs())
+  {
+    FlushX(i);
+  }
+}
+
 void RegCache::Revert()
 {
   ASSERT(IsAllUnlocked());
