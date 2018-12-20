@@ -135,19 +135,22 @@ void Jit64::lXXx(UGeckoInstruction inst)
     // if it's still 0, we can wait until the next event
     TEST(32, Rd, Rd);
     FixupBranch noIdle = J_CC(CC_NZ);
+    {
+      RCForkGuard gpr_guard = gpr.Fork();
+      RCForkGuard fpr_guard = fpr.Fork();
 
-    BitSet32 registersInUse = CallerSavedRegistersInUse();
-    ABI_PushRegistersAndAdjustStack(registersInUse, 0);
+      gpr.Flush();
+      fpr.Flush();
 
-    ABI_CallFunction(CoreTiming::Idle);
+      ABI_PushRegistersAndAdjustStack({}, 0);
+      ABI_CallFunction(CoreTiming::Idle);
+      ABI_PopRegistersAndAdjustStack({}, 0);
 
-    ABI_PopRegistersAndAdjustStack(registersInUse, 0);
-
-    // ! we must continue executing of the loop after exception handling, maybe there is still 0 in
-    // r0
-    // MOV(32, PPCSTATE(pc), Imm32(js.compilerPC));
-    WriteExceptionExit();
-
+      // ! we must continue executing of the loop after exception handling, maybe there is still 0
+      // in r0
+      MOV(32, PPCSTATE(pc), Imm32(js.compilerPC));
+      WriteExceptionExit();
+    }
     SetJumpTarget(noIdle);
 
     // js.compilerPC += 8;
