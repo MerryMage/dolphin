@@ -4,14 +4,15 @@
 
 #pragma once
 
-#include <any>
 #include <array>
 #include <bitset>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <map>
 #include <memory>
 #include <set>
+#include <variant>
 #include <vector>
 
 #include "Common/CommonTypes.h"
@@ -55,11 +56,20 @@ struct JitBlock
   // This is used to implement block linking.
   struct LinkData
   {
+    // Where is this unmapped register?
+    // std::monostate - In PPCSTATE
+    // u32            - An immediate
+    // size_t         - Bound to host register
+    using UnmappedRegister = std::variant<std::monostate, u32, size_t>;
+    using UnmappedRegisters = std::array<UnmappedRegister, 32>;
+
     u8* exitPtrs;  // to be able to rewrite the exit jump
+    u8* exit_end_ptr = nullptr;
     u32 exitAddress;
     bool linkStatus;  // is it already linked?
     bool call;
-    std::any info;
+    UnmappedRegisters unmapped_fprs;
+    UnmappedRegisters unmapped_gprs;
   };
   std::vector<LinkData> linkData;
 
@@ -79,6 +89,8 @@ struct JitBlock
   // This tracks the position if this block within the fast block cache.
   // We allow each block to have only one map entry.
   size_t fast_block_map_index;
+
+  std::vector<s8> blockInputs;
 };
 
 typedef void (*CompiledCode)();

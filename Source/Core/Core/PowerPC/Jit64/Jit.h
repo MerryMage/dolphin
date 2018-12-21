@@ -32,10 +32,12 @@ namespace PPCAnalyst
 {
 struct CodeBlock;
 struct CodeOp;
-}
+}  // namespace PPCAnalyst
 
 class Jit64 : public Jitx86Base
 {
+  using UnmappedRegInfo = JitBlock::LinkData::UnmappedRegisters;
+
 public:
   Jit64();
   ~Jit64() override;
@@ -74,7 +76,10 @@ public:
 
   void FakeBLCall(u32 after);
   void WriteExit(u32 destination, bool bl = false, u32 after = 0);
-  void JustWriteExit(u32 destination, bool bl, u32 after);
+  void JustWriteExit(u32 destination, bool bl = false, u32 after = 0,
+                     const UnmappedRegInfo& gpr = {}, const UnmappedRegInfo& fpr = {});
+  void WriteRegisterHandover(XEmitter& emit, const UnmappedRegInfo& gpr,
+                             const UnmappedRegInfo& fpr, bool bl, JitBlock* nextBlock);
   void WriteExitDestInRSCRATCH(bool bl = false, u32 after = 0);
   void WriteBLRExit();
   void WriteExceptionExit();

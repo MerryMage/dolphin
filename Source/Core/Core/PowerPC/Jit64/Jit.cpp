@@ -424,7 +424,7 @@ void Jit64::FakeBLCall(u32 after)
     gpr.Start();
     fpr.Start();
     POP(RSCRATCH2);
-    JustWriteExit(after, false, 0);
+    JustWriteExit(after);
   }
   SetJumpTarget(skip_exit);
 }
@@ -444,37 +444,82 @@ void Jit64::WriteExit(u32 destination, bool bl, u32 after)
 
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
 
-  JustWriteExit(destination, bl, after);
+  JustWriteExit(destination, bl, after, gpr.LinkData(), fpr.LinkData());
 }
 
-void Jit64::JustWriteExit(u32 destination, bool bl, u32 after)
+void Jit64::JustWriteExit(u32 destination, bool bl, u32 after,
+                          const JitBlock::LinkData::UnmappedRegisters& unmapped_gpr,
+                          const JitBlock::LinkData::UnmappedRegisters& unmapped_fpr)
 {
   // If nobody has taken care of this yet (this can be removed when all branches are done)
   JitBlock* b = js.curBlock;
   JitBlock::LinkData linkData;
   linkData.exitAddress = destination;
+  linkData.call = bl;
   linkData.linkStatus = false;
+  MOV(32, PPCSTATE(pc), Imm32(destination));
 
   if (!jo.register_handover)
   {
     gpr.Flush();
     fpr.Flush();
-    MOV(32, PPCSTATE(pc), Imm32(destination));
     linkData.exitPtrs = GetWritableCodePtr();
     if (bl)
       CALL(asm_routines.dispatcher);
     else
       JMP(asm_routines.dispatcher, true);
-
-    b->linkData.push_back(linkData);
-
-    if (bl)
-    {
-      POP(RSCRATCH);
-      JustWriteExit(after, false, 0);
-    }
-    return;
   }
+  else
+  {
+    linkData.unmapped_gprs = unmapped_gpr;
+    linkData.unmapped_fprs = unmapped_fpr;
+    linkData.exitPtrs = GetWritableCodePtr();
+    WriteRegisterHandover(*this, unmapped_gpr, unmapped_fpr, bl, nullptr);
+    linkData.exit_end_ptr = GetWritableCodePtr();
+  }
+
+  b->linkData.push_back(linkData);
+
+  if (bl)
+  {
+    POP(RSCRATCH);
+    JustWriteExit(after);
+  }
+}
+
+void Jit64::WriteRegisterHandover(Gen::XEmitter& emit,
+                                  const UnmappedRegInfo& unmapped_gpr,
+                                  const UnmappedRegInfo& unmapped_fpr,
+                                  bool bl, JitBlock* nextBlock)
+{
+  ASSERT(jo.register_handover);
+
+  for (size_t preg = 0; preg < unmapped_gpr.size(); preg++)
+  {
+    if (const size_t* xreg = std::get_if<size_t>(&unmapped_gpr[preg]))
+    {
+      emit.MOV(32, PPCSTATE(gpr[preg]), R(static_cast<X64Reg>(*xreg)));
+    }
+    else if (const u32* imm = std::get_if<u32>(&unmapped_gpr[preg]))
+    {
+      emit.MOV(32, PPCSTATE(gpr[preg]), Imm32(*imm));
+    }
+  }
+
+  for (size_t preg = 0; preg < unmapped_fpr.size(); preg++)
+  {
+    ASSERT(!std::get_if<u32>(&unmapped_fpr[preg]));
+    if (const size_t* xreg = std::get_if<size_t>(&unmapped_fpr[preg]))
+    {
+      emit.MOVAPD(PPCSTATE(ps[preg][0]), static_cast<X64Reg>(*xreg));
+    }
+  }
+
+  const u8* address = nextBlock ? nextBlock->checkedEntry : asm_routines.dispatcher;
+  if (bl)
+    emit.CALL(address);
+  else
+    emit.JMP(address, true);
 }
 
 void Jit64::WriteExitDestInRSCRATCH(bool bl, u32 after)
@@ -495,7 +540,7 @@ void Jit64::WriteExitDestInRSCRATCH(bool bl, u32 after)
   {
     CALL(asm_routines.dispatcher);
     POP(RSCRATCH);
-    JustWriteExit(after, false, 0);
+    JustWriteExit(after);
   }
   else
   {
@@ -969,6 +1014,7 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
 
   b->codeSize = (u32)(GetCodePtr() - start);
   b->originalSize = code_block.m_num_instructions;
+  b->blockInputs = code_block.m_inputs;
 
 #ifdef JIT_LOG_GENERATED_CODE
   LogGeneratedX86(code_block.m_num_instructions, m_code_buffer, start, b);
@@ -993,7 +1039,7 @@ void Jit64::EnableBlockLink()
   jo.enableBlocklink = true;
   if (SConfig::GetInstance().bJITNoBlockLinking)
     jo.enableBlocklink = false;
-  jo.register_handover = false;//jo.enableBlocklink;
+  jo.register_handover = jo.enableBlocklink;
 }
 
 void Jit64::EnableOptimization()

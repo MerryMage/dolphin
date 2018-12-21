@@ -12,6 +12,7 @@
 
 #include "Common/x64Emitter.h"
 #include "Core/PowerPC/Jit64/RegCache/CachedReg.h"
+#include "Core/PowerPC/JitCommon/JitCache.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 
 class Jit64;
@@ -178,6 +179,9 @@ public:
 
   void PreloadRegisters(BitSet32 pregs);
   BitSet32 RegistersInUse() const;
+
+  // Intended to only be used for block-linking purposes.
+  JitBlock::LinkData::UnmappedRegisters LinkData() const;
 
 protected:
   friend class RCOpArg;

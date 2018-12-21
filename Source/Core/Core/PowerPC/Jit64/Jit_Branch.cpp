@@ -163,8 +163,8 @@ void Jit64::bcx(UGeckoInstruction inst)
   {
     RCForkGuard gpr_guard = gpr.Fork();
     RCForkGuard fpr_guard = fpr.Fork();
-    gpr.Flush();
-    fpr.Flush();
+    //gpr.Flush();
+    //fpr.Flush();
     WriteExit(destination, inst.LK, js.compilerPC + 4);
   }
 

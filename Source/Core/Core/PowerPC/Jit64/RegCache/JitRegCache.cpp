@@ -473,6 +473,28 @@ BitSet32 RegCache::RegistersInUse() const
   return result;
 }
 
+JitBlock::LinkData::UnmappedRegisters RegCache::LinkData() const
+{
+  ASSERT(IsAllUnlocked());
+  JitBlock::LinkData::UnmappedRegisters state;
+  for (size_t i = 0; i < state.size(); i++)
+  {
+    switch (m_regs[i].GetLocationType())
+    {
+    case PPCCachedReg::LocationType::Default:
+    case PPCCachedReg::LocationType::SpeculativeImmediate:
+      break;
+    case PPCCachedReg::LocationType::Bound:
+      state[i] = static_cast<size_t>(m_regs[i].Location().GetSimpleReg());
+      break;
+    case PPCCachedReg::LocationType::Immediate:
+      state[i] = Imm32(i);
+      break;
+    }
+  }
+  return state;
+}
+
 void RegCache::FlushX(X64Reg reg)
 {
   ASSERT_MSG(DYNA_REC, reg < m_xregs.size(), "Flushing non-existent reg %i", reg);
