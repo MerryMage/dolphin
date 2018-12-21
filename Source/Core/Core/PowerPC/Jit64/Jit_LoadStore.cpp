@@ -125,15 +125,17 @@ void Jit64::lXXx(UGeckoInstruction inst)
        (SConfig::GetInstance().bWii && js.op[1].inst.hex == 0x2C000000)) &&
       js.op[2].inst.hex == 0x4182fff8)
   {
-    s32 offset = (s32)(s16)inst.SIMM_16;
-    RCX64Reg Ra = gpr.Bind(a, RCMode::Read);
-    RCX64Reg Rd = gpr.Bind(d, RCMode::Write);
-    RegCache::Realize(Ra, Rd);
+    {
+      s32 offset = (s32)(s16)inst.SIMM_16;
+      RCX64Reg Ra = gpr.Bind(a, RCMode::Read);
+      RCX64Reg Rd = gpr.Bind(d, RCMode::Write);
+      RegCache::Realize(Ra, Rd);
 
-    SafeLoadToReg(Rd, Ra, accessSize, offset, CallerSavedRegistersInUse(), signExtend);
+      SafeLoadToReg(Rd, Ra, accessSize, offset, CallerSavedRegistersInUse(), signExtend);
 
-    // if it's still 0, we can wait until the next event
-    TEST(32, Rd, Rd);
+      // if it's still 0, we can wait until the next event
+      TEST(32, Rd, Rd);
+    }
     FixupBranch noIdle = J_CC(CC_NZ);
     {
       RCForkGuard gpr_guard = gpr.Fork();
