@@ -418,9 +418,9 @@ void RegCache::FlushCallerSave()
       std::none_of(m_xregs.begin(), m_xregs.end(), [](const auto& x) { return x.IsLocked(); }),
       "Someone forgot to unlock a X64 reg");
 
-  for (preg_t i : GetCallerSaveXRegs())
+  for (int i : GetCallerSaveXRegs())
   {
-    FlushX(i);
+    FlushX(static_cast<X64Reg>(i));
   }
 }
 
