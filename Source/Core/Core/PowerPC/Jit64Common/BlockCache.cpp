@@ -17,20 +17,24 @@ void JitBlockCache::WriteLinkBlock(const JitBlock::LinkData& source, const JitBl
   u8* location = source.exitPtrs;
   const u8* address = dest ? dest->checkedEntry : m_jit.GetAsmRoutines()->dispatcher;
   Gen::XEmitter emit(location);
-  if (*location == 0xE8)
-  {
-    emit.CALL(address);
-  }
-  else
-  {
-    // If we're going to link with the next block, there is no need
-    // to emit JMP. So just NOP out the gap to the next block.
-    // Support up to 3 additional bytes because of alignment.
-    s64 offset = address - emit.GetCodePtr();
-    if (offset > 0 && offset <= 5 + 3)
-      emit.NOP(offset);
+
+  if (!m_jit.jo.register_handover) {
+    if (*location == 0xE8)
+    {
+      emit.CALL(address);
+    }
     else
-      emit.JMP(address, true);
+    {
+      // If we're going to link with the next block, there is no need
+      // to emit JMP. So just NOP out the gap to the next block.
+      // Support up to 3 additional bytes because of alignment.
+      s64 offset = address - emit.GetCodePtr();
+      if (offset > 0 && offset <= 5 + 3)
+        emit.NOP(offset);
+      else
+        emit.JMP(address, true);
+    }
+    return;
   }
 }
 

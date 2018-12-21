@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <any>
 #include <array>
 #include <bitset>
 #include <cstring>
@@ -58,6 +59,7 @@ struct JitBlock
     u32 exitAddress;
     bool linkStatus;  // is it already linked?
     bool call;
+    std::any info;
   };
   std::vector<LinkData> linkData;
 

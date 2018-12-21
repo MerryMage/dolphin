@@ -361,6 +361,8 @@ bool Jit64::Cleanup()
 
   if (jo.optimizeGatherPipe && js.fifoBytesSinceCheck > 0)
   {
+    gpr.FlushCallerSave();
+    fpr.FlushCallerSave();
     MOV(64, R(RSCRATCH), PPCSTATE(gather_pipe_ptr));
     SUB(64, R(RSCRATCH), PPCSTATE(gather_pipe_base_ptr));
     CMP(64, R(RSCRATCH), Imm32(GPFifo::GATHER_PIPE_SIZE));
@@ -375,6 +377,8 @@ bool Jit64::Cleanup()
   // SPEED HACK: MMCR0/MMCR1 should be checked at run-time, not at compile time.
   if (MMCR0.Hex || MMCR1.Hex)
   {
+    gpr.FlushCallerSave();
+    fpr.FlushCallerSave();
     ABI_PushRegistersAndAdjustStack({}, 0);
     ABI_CallFunctionCCC(PowerPC::UpdatePerformanceMonitor, js.downcountAmount, js.numLoadStoreInst,
                         js.numFloatingPointInst);
@@ -384,6 +388,8 @@ bool Jit64::Cleanup()
 
   if (jo.profile_blocks)
   {
+    gpr.FlushCallerSave();
+    fpr.FlushCallerSave();
     ABI_PushRegistersAndAdjustStack({}, 0);
     // get end tic
     MOV(64, R(ABI_PARAM1), ImmPtr(&js.curBlock->profile_data.ticStop));
@@ -412,8 +418,14 @@ void Jit64::FakeBLCall(u32 after)
   MOV(32, R(RSCRATCH2), Imm32(after));
   PUSH(RSCRATCH2);
   FixupBranch skip_exit = CALL();
-  POP(RSCRATCH2);
-  JustWriteExit(after, false, 0);
+  {
+    auto gpr_guard = gpr.Fork();
+    auto fpr_guard = fpr.Fork();
+    gpr.Start();
+    fpr.Start();
+    POP(RSCRATCH2);
+    JustWriteExit(after, false, 0);
+  }
   SetJumpTarget(skip_exit);
 }
 
@@ -443,19 +455,25 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after)
   linkData.exitAddress = destination;
   linkData.linkStatus = false;
 
-  MOV(32, PPCSTATE(pc), Imm32(destination));
-  linkData.exitPtrs = GetWritableCodePtr();
-  if (bl)
-    CALL(asm_routines.dispatcher);
-  else
-    JMP(asm_routines.dispatcher, true);
-
-  b->linkData.push_back(linkData);
-
-  if (bl)
+  if (!jo.register_handover)
   {
-    POP(RSCRATCH);
-    JustWriteExit(after, false, 0);
+    gpr.Flush();
+    fpr.Flush();
+    MOV(32, PPCSTATE(pc), Imm32(destination));
+    linkData.exitPtrs = GetWritableCodePtr();
+    if (bl)
+      CALL(asm_routines.dispatcher);
+    else
+      JMP(asm_routines.dispatcher, true);
+
+    b->linkData.push_back(linkData);
+
+    if (bl)
+    {
+      POP(RSCRATCH);
+      JustWriteExit(after, false, 0);
+    }
+    return;
   }
 }
 
@@ -975,6 +993,7 @@ void Jit64::EnableBlockLink()
   jo.enableBlocklink = true;
   if (SConfig::GetInstance().bJITNoBlockLinking)
     jo.enableBlocklink = false;
+  jo.register_handover = false;//jo.enableBlocklink;
 }
 
 void Jit64::EnableOptimization()

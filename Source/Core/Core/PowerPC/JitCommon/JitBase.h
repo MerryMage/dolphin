@@ -54,6 +54,7 @@ protected:
     bool fastmem;
     bool memcheck;
     bool profile_blocks;
+    bool register_handover;
   };
   struct JitState
   {
