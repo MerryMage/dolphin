@@ -28,6 +28,7 @@
 #include "Core/PatchEngine.h"
 #include "Core/PowerPC/Jit64/JitAsm.h"
 #include "Core/PowerPC/Jit64/RegCache/JitRegCache.h"
+#include "Core/PowerPC/Jit64Common/BlockCache.h"
 #include "Core/PowerPC/Jit64Common/FarCodeCache.h"
 #include "Core/PowerPC/Jit64Common/Jit64PowerPCState.h"
 #include "Core/PowerPC/Jit64Common/TrampolineCache.h"
@@ -451,6 +452,9 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after,
                           const JitBlock::LinkData::UnmappedRegisters& unmapped_gpr,
                           const JitBlock::LinkData::UnmappedRegisters& unmapped_fpr)
 {
+  bool after_target_valid = false;
+  FixupBranch after_target;
+
   // If nobody has taken care of this yet (this can be removed when all branches are done)
   JitBlock* b = js.curBlock;
   JitBlock::LinkData linkData;
@@ -471,10 +475,43 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after,
   }
   else
   {
+    /*if (gpr.RegistersInUse().Count() == 0 && fpr.RegistersInUse().Count() == 0)
+    {
+      if (bl)
+      {
+        linkData.needs_timing_check = true;
+      }
+      else
+      {
+        linkData.needs_timing_check = false;
+        J_CC(CC_G, asm_routines.do_timing);
+      }
+    }
+    else*/
+    {
+      linkData.needs_timing_check = false;
+      FixupBranch do_timing = J_CC(CC_G, true);
+      SwitchToFarCode();
+      SetJumpTarget(do_timing);
+      gpr.Flush();
+      fpr.Flush();
+      if (bl)
+      {
+        CALL(asm_routines.do_timing);
+        after_target = J(true);
+        after_target_valid = true;
+      }
+      else
+      {
+        JMP(asm_routines.do_timing, true);
+      }
+      SwitchToNearCode();
+    }
+
     linkData.unmapped_gprs = unmapped_gpr;
     linkData.unmapped_fprs = unmapped_fpr;
     linkData.exitPtrs = GetWritableCodePtr();
-    WriteRegisterHandover(*this, unmapped_gpr, unmapped_fpr, bl, nullptr);
+    WriteRegisterHandover(*this, unmapped_gpr, unmapped_fpr, bl, linkData.needs_timing_check, nullptr);
     linkData.exit_end_ptr = GetWritableCodePtr();
   }
 
@@ -482,6 +519,8 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after,
 
   if (bl)
   {
+    if (after_target_valid)
+      SetJumpTarget(after_target);
     POP(RSCRATCH);
     JustWriteExit(after);
   }
@@ -490,7 +529,7 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after,
 void Jit64::WriteRegisterHandover(Gen::XEmitter& emit,
                                   const UnmappedRegInfo& unmapped_gpr,
                                   const UnmappedRegInfo& unmapped_fpr,
-                                  bool bl, JitBlock* nextBlock)
+                                  bool bl, bool check_timing, JitBlock* nextBlock)
 {
   ASSERT(jo.register_handover);
 
@@ -515,7 +554,7 @@ void Jit64::WriteRegisterHandover(Gen::XEmitter& emit,
     }
   }
 
-  const u8* address = nextBlock ? nextBlock->checkedEntry : asm_routines.dispatcher;
+  const u8* address = nextBlock ? (check_timing ? nextBlock->checkedEntry : nextBlock->normalEntry) : asm_routines.dispatcher;
   if (bl)
     emit.CALL(address);
   else
@@ -768,6 +807,8 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   js.carryFlagInverted = false;
   js.constantGqr.clear();
 
+  //auto handover_info = WriteReceiveRegisterHandover(*this, gpr, fpr, b->blockInputs);
+
   // Assume that GQR values don't change often at runtime. Many paired-heavy games use largely float
   // loads and stores,
   // which are significantly faster when inlined (especially in MMU mode, where this lets them use
@@ -1015,6 +1056,7 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   b->codeSize = (u32)(GetCodePtr() - start);
   b->originalSize = code_block.m_num_instructions;
   b->blockInputs = code_block.m_inputs;
+  //b->handover_info = handover_info;
 
 #ifdef JIT_LOG_GENERATED_CODE
   LogGeneratedX86(code_block.m_num_instructions, m_code_buffer, start, b);
@@ -1039,7 +1081,7 @@ void Jit64::EnableBlockLink()
   jo.enableBlocklink = true;
   if (SConfig::GetInstance().bJITNoBlockLinking)
     jo.enableBlocklink = false;
-  jo.register_handover = jo.enableBlocklink;
+  jo.register_handover = false;//jo.enableBlocklink;
 }
 
 void Jit64::EnableOptimization()

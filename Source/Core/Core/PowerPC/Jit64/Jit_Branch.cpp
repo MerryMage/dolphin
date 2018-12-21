@@ -84,9 +84,6 @@ void Jit64::bx(UGeckoInstruction inst)
     return;
   }
 
-  gpr.Flush();
-  fpr.Flush();
-
   u32 destination;
   if (inst.AA)
     destination = SignExt26(inst.LI << 2);
@@ -98,6 +95,8 @@ void Jit64::bx(UGeckoInstruction inst)
 #endif
   if (destination == js.compilerPC)
   {
+    gpr.Flush();
+    fpr.Flush();
     ABI_PushRegistersAndAdjustStack({}, 0);
     ABI_CallFunction(CoreTiming::Idle);
     ABI_PopRegistersAndAdjustStack({}, 0);

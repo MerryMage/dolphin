@@ -79,7 +79,7 @@ public:
   void JustWriteExit(u32 destination, bool bl = false, u32 after = 0,
                      const UnmappedRegInfo& gpr = {}, const UnmappedRegInfo& fpr = {});
   void WriteRegisterHandover(XEmitter& emit, const UnmappedRegInfo& gpr,
-                             const UnmappedRegInfo& fpr, bool bl, JitBlock* nextBlock);
+                             const UnmappedRegInfo& fpr, bool bl, bool check_timing, JitBlock* nextBlock);
   void WriteExitDestInRSCRATCH(bool bl = false, u32 after = 0);
   void WriteBLRExit();
   void WriteExceptionExit();

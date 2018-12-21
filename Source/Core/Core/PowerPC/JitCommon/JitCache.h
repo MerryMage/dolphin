@@ -68,6 +68,7 @@ struct JitBlock
     u32 exitAddress;
     bool linkStatus;  // is it already linked?
     bool call;
+    bool needs_timing_check;
     UnmappedRegisters unmapped_fprs;
     UnmappedRegisters unmapped_gprs;
   };
@@ -91,6 +92,14 @@ struct JitBlock
   size_t fast_block_map_index;
 
   std::vector<s8> blockInputs;
+
+  struct HandoverInfo
+  {
+    size_t index;
+    s8 preg;
+    u8* entry;
+  };
+  std::vector<HandoverInfo> handover_info;
 };
 
 typedef void (*CompiledCode)();

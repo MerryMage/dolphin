@@ -22,6 +22,9 @@ class RCOpArg;
 class RCX64Reg;
 class RegCache;
 
+class GPRRegCache;
+class FPURegCache;
+
 using preg_t = size_t;
 static constexpr size_t NUM_XREGS = 16;
 
@@ -180,8 +183,12 @@ public:
   void PreloadRegisters(BitSet32 pregs);
   BitSet32 RegistersInUse() const;
 
-  // Intended to only be used for block-linking purposes.
+  /// Intended to only be used for block-linking purposes.
   JitBlock::LinkData::UnmappedRegisters LinkData() const;
+  /// Intended to only be used for block-linking purposes.
+  void PreloadForHandover(size_t index, preg_t preg);
+  /// Intended to only be used for block-linking purposes.
+  Gen::X64Reg GetHandoverRegister(size_t index) const;
 
 protected:
   friend class RCOpArg;
@@ -200,7 +207,8 @@ protected:
 
   void FlushX(Gen::X64Reg reg);
   void DiscardRegContentsIfCached(preg_t preg);
-  void BindToRegister(preg_t preg, bool doLoad = true, bool makeDirty = true);
+  void BindToRegister(preg_t preg, Gen::X64Reg reg, bool doLoad, bool makeDirty);
+  void BindToFreeRegister(preg_t preg, bool doLoad = true, bool makeDirty = true);
   void StoreFromRegister(preg_t preg, FlushMode mode = FlushMode::Full);
 
   Gen::X64Reg GetFreeXReg();
