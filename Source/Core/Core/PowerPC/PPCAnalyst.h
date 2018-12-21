@@ -152,11 +152,10 @@ struct CodeBlock
   // Which GQRs this block modifies, if any.
   BitSet8 m_gqr_modified;
 
-  // Which FPRs this block reads from before defining, if any, in order of them being read.
-  std::vector<s8> m_fpr_inputs;
-
-  // Which GPRs this block reads from before defining, if any, in order of them being read.
-  std::vector<s8> m_gpr_inputs;
+  // Which registers this block reads from before defining, if any, in order of them being read.
+  // 0-31: GPRs r0-r31
+  // 32-63: FPRs fp0-fp31
+  std::vector<s8> m_inputs;
 
   // Which memory locations are occupied by this block.
   std::set<u32> m_physical_addresses;

@@ -880,7 +880,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   BitSet32 fprIsSingle, fprIsDuplicated, fprIsStoreSafe, gprDefined;
   BitSet8 gqrUsed, gqrModified;
   BitSet32 gprBlockInputsSet, fprBlockInputsSet;
-  std::vector<s8> gprBlockInputs, fprBlockInputs;
+  std::vector<s8> blockInputs;
   for (u32 i = 0; i < block->m_num_instructions; i++)
   {
     CodeOp& op = code[i];
@@ -888,7 +888,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     const BitSet32 newBlockInputs = op.regsIn & ~gprDefined;
     for (auto input : newBlockInputs & ~gprBlockInputsSet)
     {
-      gprBlockInputs.push_back(static_cast<s8>(input));
+      blockInputs.push_back(static_cast<s8>(input));
     }
     gprBlockInputsSet |= newBlockInputs;
     gprDefined |= op.regsOut;
@@ -900,7 +900,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     {
       if (!fprBlockInputsSet[op.fregOut])
       {
-        fprBlockInputs.push_back(op.fregOut);
+        blockInputs.push_back(32 + op.fregOut);
         fprBlockInputsSet[op.fregOut] = true;
       }
 
@@ -951,8 +951,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   }
   block->m_gqr_used = gqrUsed;
   block->m_gqr_modified = gqrModified;
-  block->m_fpr_inputs = fprBlockInputs;
-  block->m_gpr_inputs = gprBlockInputs;
+  block->m_inputs = blockInputs;
   return address;
 }
 
