@@ -22,12 +22,11 @@ void Jit64::ps_mr(UGeckoInstruction inst)
   if (d == b)
     return;
 
-  RCRepr repr = fpr.GetRepr(b);
   RCOpArg Rb = fpr.Use(b, RCMode::Read);
   RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
   RegCache::Realize(Rb, Rd);
   MOVAPD(Rd, Rb);
-  Rd.SetRepr(repr);
+  Rd.SetRepr(RCRepr::Canonical);
 }
 
 void Jit64::ps_sum(UGeckoInstruction inst)
@@ -41,7 +40,6 @@ void Jit64::ps_sum(UGeckoInstruction inst)
   int b = inst.FB;
   int c = inst.FC;
 
-  const bool Ra_is_dup = fpr.IsDupPhysical(a);
   RCOpArg Ra = fpr.Use(a, RCMode::Read);
   RCOpArg Rb = fpr.Use(b, RCMode::Read);
   RCOpArg Rc = fpr.Use(c, RCMode::Read);
@@ -49,8 +47,7 @@ void Jit64::ps_sum(UGeckoInstruction inst)
   RegCache::Realize(Ra, Rb, Rc, Rd);
 
   X64Reg tmp = XMM1;
-  if (!Ra_is_dup)
-    MOVDDUP(tmp, Ra);  // {a.ps0, a.ps0}
+  MOVDDUP(tmp, Ra);  // {a.ps0, a.ps0}
   ADDPD(tmp, Rb);    // {a.ps0 + b.ps0, a.ps0 + b.ps1}
   switch (inst.SUBOP5)
   {

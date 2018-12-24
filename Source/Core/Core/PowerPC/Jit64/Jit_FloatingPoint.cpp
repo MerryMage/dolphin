@@ -39,7 +39,6 @@ void Jit64::SetFPRFIfNeeded(RCX64Reg& reg)
     reg.ConvertTo(RCRepr::Canonical);
     SetFPRF(reg);
   }
-  reg.ConvertTo(RCRepr::Canonical);
 }
 
 void Jit64::HandleNaNs(UGeckoInstruction inst, X64Reg xmm_out, X64Reg xmm, X64Reg clobber)
@@ -208,13 +207,10 @@ void Jit64::fp_arith(UGeckoInstruction inst)
     }
 
     HandleNaNs(inst, Rd, dest);
+    Rd.SetRepr(RCRepr::Canonical);
     if (single)
     {
       ForceSinglePrecision(Rd, Rd, packed, true);
-    }
-    else
-    {
-      Rd.SetRepr(RCRepr::Canonical);
     }
     SetFPRFIfNeeded(Rd);
   };
@@ -370,6 +366,7 @@ void Jit64::fmaddXX(UGeckoInstruction inst)
       XORPD(XMM1, MConst(packed ? psSignBits2 : psSignBits));
   }
 
+  Rd.SetRepr(RCRepr::Canonical);
   if (single)
   {
     HandleNaNs(inst, Rd, XMM1);
@@ -379,7 +376,6 @@ void Jit64::fmaddXX(UGeckoInstruction inst)
   {
     HandleNaNs(inst, XMM1, XMM1);
     MOVSD(Rd, R(XMM1));
-    Rd.SetRepr(RCRepr::Canonical);
   }
   SetFPRFIfNeeded(Rd);
 }
@@ -651,25 +647,13 @@ void Jit64::frspx(UGeckoInstruction inst)
   int d = inst.FD;
   bool packed = fpr.IsDupPhysical(b) && !cpu_info.bAtom;
 
-  /*if (fpr.IsSingle(b))
-  {
-    RCOpArg Rb = fpr.Use(b, RCMode::Read, RCRepr::DupSingles);
-    RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
-    RegCache::Realize(Rb, Rd);
+  RCOpArg Rb = fpr.Use(b, RCMode::Read);
+  RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
+  RegCache::Realize(Rb, Rd);
 
-    MOVAPD(Rd, Rb);
-    Rd.SetRepr(RCRepr::DupSingles);
-    SetFPRFIfNeeded(Rd);
-  }
-  else
-  {*/
-    RCOpArg Rb = fpr.Use(b, RCMode::Read);
-    RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
-    RegCache::Realize(Rb, Rd);
-
-    ForceSinglePrecision(Rd, Rb, packed, true);
-    SetFPRFIfNeeded(Rd);
-  //}
+  Rd.SetRepr(RCRepr::Canonical);
+  ForceSinglePrecision(Rd, Rb, packed, true);
+  SetFPRFIfNeeded(Rd);
 }
 
 void Jit64::frsqrtex(UGeckoInstruction inst)
