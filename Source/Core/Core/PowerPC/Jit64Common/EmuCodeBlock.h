@@ -117,8 +117,8 @@ public:
               void (Gen::XEmitter::*sseOp)(Gen::X64Reg, const Gen::OpArg&, u8), Gen::X64Reg regOp,
               const Gen::OpArg& arg1, const Gen::OpArg& arg2, u8 imm);
 
-  void ForceSinglePrecision(RCX64Reg& reg, bool packed = true, bool duplicate = false);
-  void ForceSinglePrecision(RCX64Reg& out, RCOpArg& in, bool packed = true, bool duplicate = false);
+  void ForceSinglePrecision(RCX64Reg& out, const Gen::OpArg& in, bool packed = true,
+                            bool duplicate = false);
   void Force25BitPrecision(Gen::X64Reg output, const Gen::OpArg& input, Gen::X64Reg tmp);
 
   // RSCRATCH might get trashed

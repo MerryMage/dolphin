@@ -21,19 +21,21 @@ enum class RCRepr
   /// Canonical representation
   /// Integer: A simple integer
   /// Float: A pair of doubles
-  Canonical = 0b000,
+  Canonical = 0b0000,
 
   // Float representations
   /// A pair of singles
-  PairSingles = 0b001,
+  PairSingles = 0b0001,
   /// Lower reg is same as upper one (note: physically upper is nonexistent)
-  Dup = 0b010,
+  Dup = 0b0010,
   /// Lower reg is same as upper one as single (only lower exists)
-  DupSingles = 0b011,
+  DupSingles = 0b0011,
   /// Lower reg is same as upper one (and both physically exist)
-  DupPhysical = 0b100,
+  DupPhysical = 0b0100,
   /// Lower reg is same as upper one as single (and both exist)
-  DupPhysicalSingles = 0b101,
+  DupPhysicalSingles = 0b0101,
+  /// Lower reg is single, upper reg is double
+  DoubleSingle = 0b1001,
 };
 
 inline bool IsRCReprSingle(RCRepr repr)

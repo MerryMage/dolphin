@@ -721,61 +721,18 @@ void EmuCodeBlock::JitClearCA()
   MOV(8, PPCSTATE(xer_ca), Imm8(0));
 }
 
-void EmuCodeBlock::ForceSinglePrecision(RCX64Reg& reg, bool packed, bool duplicate)
+void EmuCodeBlock::ForceSinglePrecision(RCX64Reg& out, const Gen::OpArg& in, bool packed,
+                                        bool duplicate)
 {
-  // Most games don't need these. Zelda requires it though - some platforms get stuck without them.
-  if (g_jit->jo.accurateSinglePrecision)
+  if (packed)
   {
-    if (packed)
-    {
-      CVTPD2PS(reg, reg);
-      CVTPS2PD(reg, reg);
-    }
-    else
-    {
-      CVTSD2SS(reg, reg);
-      CVTSS2SD(reg, reg);
-      if (duplicate)
-      {
-        MOVDDUP(reg, reg);
-        reg.SetRepr(RCRepr::DupPhysical);
-      }
-    }
+    CVTPD2PS(out, in);
+    out.SetRepr(RCRepr::PairSingles);
   }
-}
-
-void EmuCodeBlock::ForceSinglePrecision(RCX64Reg& out, RCOpArg& in, bool packed, bool duplicate)
-{
-  // Most games don't need these. Zelda requires it though - some platforms get stuck without them.
-  if (g_jit->jo.accurateSinglePrecision)
+  else
   {
-    if (packed)
-    {
-      CVTPD2PS(out, in);
-      CVTPS2PD(out, out);
-    }
-    else
-    {
-      CVTSD2SS(out, in);
-      CVTSS2SD(out, out);
-      if (duplicate)
-      {
-        MOVDDUP(out, out);
-        out.SetRepr(RCRepr::DupPhysical);
-      }
-    }
-  }
-  else if (!in.IsSimpleReg(out))
-  {
-    if (duplicate)
-    {
-      MOVDDUP(out, in);
-      out.SetRepr(RCRepr::DupPhysical);
-    }
-    else
-    {
-      MOVAPD(out, in);
-    }
+    CVTSD2SS(out, in);
+    out.SetRepr(duplicate ? RCRepr::DupSingles : RCRepr::DoubleSingle);
   }
 }
 

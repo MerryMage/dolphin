@@ -23,7 +23,7 @@ void Jit64::ps_mr(UGeckoInstruction inst)
     return;
 
   RCRepr repr = fpr.GetRepr(b);
-  RCOpArg Rb = fpr.Use(b, RCMode::Read, repr);
+  RCOpArg Rb = fpr.Use(b, RCMode::Read);
   RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
   RegCache::Realize(Rb, Rd);
   MOVAPD(Rd, Rb);
@@ -41,6 +41,7 @@ void Jit64::ps_sum(UGeckoInstruction inst)
   int b = inst.FB;
   int c = inst.FC;
 
+  const bool Ra_is_dup = fpr.IsDupPhysical(a);
   RCOpArg Ra = fpr.Use(a, RCMode::Read);
   RCOpArg Rb = fpr.Use(b, RCMode::Read);
   RCOpArg Rc = fpr.Use(c, RCMode::Read);
@@ -48,7 +49,8 @@ void Jit64::ps_sum(UGeckoInstruction inst)
   RegCache::Realize(Ra, Rb, Rc, Rd);
 
   X64Reg tmp = XMM1;
-  MOVDDUP(tmp, Ra);  // {a.ps0, a.ps0}
+  if (!Ra_is_dup)
+    MOVDDUP(tmp, Ra);  // {a.ps0, a.ps0}
   ADDPD(tmp, Rb);    // {a.ps0 + b.ps0, a.ps0 + b.ps1}
   switch (inst.SUBOP5)
   {
@@ -78,7 +80,7 @@ void Jit64::ps_sum(UGeckoInstruction inst)
     PanicAlert("ps_sum WTF!!!");
   }
   HandleNaNs(inst, Rd, tmp, tmp == XMM1 ? XMM0 : XMM1);
-  ForceSinglePrecision(Rd);
+  ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
 
@@ -113,7 +115,7 @@ void Jit64::ps_muls(UGeckoInstruction inst)
     Force25BitPrecision(XMM1, R(XMM1), XMM0);
   MULPD(XMM1, Ra);
   HandleNaNs(inst, Rd, XMM1);
-  ForceSinglePrecision(Rd);
+  ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
 
@@ -172,7 +174,7 @@ void Jit64::ps_rsqrte(UGeckoInstruction inst)
   CALL(asm_routines.frsqrte);
   MOVLHPS(Rd, XMM0);
 
-  ForceSinglePrecision(Rd);
+  ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
 
@@ -197,7 +199,7 @@ void Jit64::ps_res(UGeckoInstruction inst)
   CALL(asm_routines.fres);
   MOVLHPS(Rd, XMM0);
 
-  ForceSinglePrecision(Rd);
+  ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
 
