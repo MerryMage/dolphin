@@ -16,39 +16,22 @@ public:
   template <typename... Args>
   bool IsSingle(Args... pregs) const
   {
-    const auto is_single = [this](preg_t preg) {
-      switch (m_regs[preg].GetRepr())
-      {
-      case RCRepr::Canonical:
-      case RCRepr::Dup:
-        return false;
-      case RCRepr::PairSingles:
-      case RCRepr::DupSingles:
-        return true;
-      }
-    };
-
     static_assert(sizeof...(pregs) > 0);
-    return (is_single(pregs) && ...);
+    return (IsRCReprSingle(m_regs[pregs].GetRepr()) && ...);
   }
 
   template <typename... Args>
-  bool IsDup(Args... pregs) const
+  bool IsAnyDup(Args... pregs) const
   {
-    const auto is_dup = [this](preg_t preg) {
-      switch (m_regs[preg].GetRepr())
-      {
-      case RCRepr::Canonical:
-      case RCRepr::PairSingles:
-        return false;
-      case RCRepr::Dup:
-      case RCRepr::DupSingles:
-        return true;
-      }
-    };
-
     static_assert(sizeof...(pregs) > 0);
-    return (is_dup(pregs) && ...);
+    return (IsRCReprAnyDup(m_regs[pregs].GetRepr()) && ...);
+  }
+
+  template <typename... Args>
+  bool IsDupPhysical(Args... pregs) const
+  {
+    static_assert(sizeof...(pregs) > 0);
+    return (IsRCReprDupPhysical(m_regs[pregs].GetRepr()) && ...);
   }
 
 protected:

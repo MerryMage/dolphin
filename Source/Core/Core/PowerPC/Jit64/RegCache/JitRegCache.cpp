@@ -522,6 +522,8 @@ void RegCache::BindToRegister(preg_t i, bool doLoad, bool makeDirty, RCRepr repr
   if (doLoad && repr != m_regs[i].GetRepr())
   {
     ConvertRegister(i, repr);
+    if (makeDirty)
+      m_regs[i].SetRepr(repr);
   }
 
   ASSERT_MSG(DYNA_REC, !m_xregs[RX(i)].IsLocked(), "WTF, this reg should have been flushed");
@@ -531,7 +533,7 @@ void RegCache::StoreFromRegister(preg_t i, FlushMode mode)
 {
   // When a transaction is in progress, allowing the store would overwrite the old value.
   ASSERT_MSG(DYNA_REC, !m_regs[i].IsRevertable(), "Register transaction is in progress!");
-  ASSERT_MSG(DYNA_REC, mode == FlushMode::Full || m_regs[i].GetRepr() == RCRepr::Canonical,
+  ASSERT_MSG(DYNA_REC, mode == FlushMode::Full || IsRCReprCanonicalCompatible(m_regs[i].GetRepr()),
              "Value requires representation conversion, cannot MaintainState!");
 
   bool doStore = false;
@@ -707,6 +709,8 @@ void RegCache::Realize(preg_t preg)
   if (m_constraints[preg].ShouldBeRevertable())
   {
     ASSERT(repr == RCRepr::Canonical);
+    if (!IsRCReprCanonicalCompatible(m_regs[preg].GetRepr()))
+      ConvertRegister(preg, RCRepr::Canonical);
     StoreFromRegister(preg, FlushMode::MaintainState);
     do_bind();
     m_regs[preg].SetRevertable();

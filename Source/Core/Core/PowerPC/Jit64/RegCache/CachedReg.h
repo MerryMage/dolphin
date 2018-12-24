@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <type_traits>
 
 #include "Common/Assert.h"
 #include "Common/CommonTypes.h"
@@ -20,16 +21,40 @@ enum class RCRepr
   /// Canonical representation
   /// Integer: A simple integer
   /// Float: A pair of doubles
-  Canonical,
+  Canonical = 0b000,
 
   // Float representations
-  /// Lower reg is same as upper one (note: physically upper is nonexistent)
-  Dup,
   /// A pair of singles
-  PairSingles,
-  /// Lower reg is same as upper one as single
-  DupSingles,
+  PairSingles = 0b001,
+  /// Lower reg is same as upper one (note: physically upper is nonexistent)
+  Dup = 0b010,
+  /// Lower reg is same as upper one as single (only lower exists)
+  DupSingles = 0b011,
+  /// Lower reg is same as upper one (and both physically exist)
+  DupPhysical = 0b100,
+  /// Lower reg is same as upper one as single (and both exist)
+  DupPhysicalSingles = 0b101,
 };
+
+inline bool IsRCReprSingle(RCRepr repr)
+{
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b001;
+}
+
+inline bool IsRCReprAnyDup(RCRepr repr)
+{
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b110;
+}
+
+inline bool IsRCReprDupPhysical(RCRepr repr)
+{
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b100;
+}
+
+inline bool IsRCReprCanonicalCompatible(RCRepr repr)
+{
+  return repr == RCRepr::Canonical || repr == RCRepr::DupPhysical;
+}
 
 class PPCCachedReg
 {
@@ -77,7 +102,7 @@ public:
 
   void SetBoundTo(Gen::X64Reg xreg)
   {
-    ASSERT(repr == RCRepr::Canonical);
+    ASSERT(IsRCReprCanonicalCompatible(repr));
     away = true;
     location = Gen::R(xreg);
   }
@@ -87,7 +112,6 @@ public:
     ASSERT(!revertable);
     away = false;
     location = default_location;
-    repr = RCRepr::Canonical;
   }
 
   void SetToImm32(u32 imm32, bool dirty = true)
@@ -126,7 +150,7 @@ public:
   RCRepr GetRepr() const { return repr; }
   void SetRepr(RCRepr r)
   {
-    ASSERT(IsLocked() && IsBound());
+    ASSERT(IsBound());
     repr = r;
   }
 
