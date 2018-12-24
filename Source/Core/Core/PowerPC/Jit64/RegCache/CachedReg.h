@@ -58,6 +58,23 @@ inline bool IsRCReprCanonicalCompatible(RCRepr repr)
   return repr == RCRepr::Canonical || repr == RCRepr::DupPhysical;
 }
 
+inline bool IsRCReprRequestable(RCRepr repr)
+{
+  switch (repr)
+  {
+  case RCRepr::Canonical:
+  case RCRepr::PairSingles:
+  case RCRepr::Dup:
+  case RCRepr::DupSingles:
+    return true;
+  case RCRepr::DupPhysical:
+  case RCRepr::DupPhysicalSingles:
+  case RCRepr::DoubleSingle:
+    return false;
+  }
+  return false;
+}
+
 class PPCCachedReg
 {
 public:
@@ -252,6 +269,15 @@ public:
   }
 
 private:
+  RCRepr ReconcileRepr(RCRepr r1, std::optional<RCRepr> r2)
+  {
+    ASSERT(IsRCReprRequestable(r1));
+    if (!r2)
+      return r1;
+    ASSERT(IsRCReprSingle(r1) == IsRCReprSingle(*r2));
+    return IsRCReprAnyDup(r1) ? *r2 : r1;
+  }
+
   void AddConstraint(RCMode mode, ConstraintLoc loc, bool should_revertable, RCRepr r)
   {
     if (IsRealized())
@@ -282,8 +308,7 @@ private:
     switch (mode)
     {
     case RCMode::Read:
-      ASSERT(!repr || repr == r);
-      repr = r;
+      repr = ReconcileRepr(r, repr);
       read = true;
       break;
     case RCMode::Write:
@@ -291,7 +316,7 @@ private:
       write = true;
       break;
     case RCMode::ReadWrite:
-      ASSERT(!repr || repr == r);
+      repr = ReconcileRepr(r, repr);
       repr = r;
       read = true;
       write = true;
