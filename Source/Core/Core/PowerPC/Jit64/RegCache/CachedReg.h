@@ -271,7 +271,6 @@ public:
 private:
   RCRepr ReconcileRepr(RCRepr r1, std::optional<RCRepr> r2)
   {
-    ASSERT(IsRCReprRequestable(r1));
     if (!r2)
       return r1;
     ASSERT(IsRCReprSingle(r1) == IsRCReprSingle(*r2));
@@ -317,7 +316,6 @@ private:
       break;
     case RCMode::ReadWrite:
       repr = ReconcileRepr(r, repr);
-      repr = r;
       read = true;
       write = true;
       break;
