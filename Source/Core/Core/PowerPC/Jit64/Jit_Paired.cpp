@@ -80,6 +80,7 @@ void Jit64::ps_sum(UGeckoInstruction inst)
     PanicAlert("ps_sum WTF!!!");
   }
   HandleNaNs(inst, Rd, tmp, tmp == XMM1 ? XMM0 : XMM1);
+  Rd.SetRepr(RCRepr::Canonical);
   ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
@@ -93,7 +94,7 @@ void Jit64::ps_muls(UGeckoInstruction inst)
   int d = inst.FD;
   int a = inst.FA;
   int c = inst.FC;
-  bool round_input = !js.op->fprIsSingle[c];
+  bool round_input = true;//!js.op->fprIsSingle[c];
 
   RCOpArg Ra = fpr.Use(a, RCMode::Read);
   RCOpArg Rc = fpr.Use(c, RCMode::Read);
@@ -115,6 +116,7 @@ void Jit64::ps_muls(UGeckoInstruction inst)
     Force25BitPrecision(XMM1, R(XMM1), XMM0);
   MULPD(XMM1, Ra);
   HandleNaNs(inst, Rd, XMM1);
+  Rd.SetRepr(RCRepr::Canonical);
   ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
@@ -151,6 +153,8 @@ void Jit64::ps_mergeXX(UGeckoInstruction inst)
   default:
     ASSERT_MSG(DYNA_REC, 0, "ps_merge - invalid op");
   }
+
+  Rd.SetRepr(RCRepr::Canonical);
 }
 
 void Jit64::ps_rsqrte(UGeckoInstruction inst)
@@ -174,6 +178,7 @@ void Jit64::ps_rsqrte(UGeckoInstruction inst)
   CALL(asm_routines.frsqrte);
   MOVLHPS(Rd, XMM0);
 
+  Rd.SetRepr(RCRepr::Canonical);
   ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }
@@ -199,6 +204,7 @@ void Jit64::ps_res(UGeckoInstruction inst)
   CALL(asm_routines.fres);
   MOVLHPS(Rd, XMM0);
 
+  Rd.SetRepr(RCRepr::Canonical);
   ForceSinglePrecision(Rd, Rd);
   SetFPRFIfNeeded(Rd);
 }

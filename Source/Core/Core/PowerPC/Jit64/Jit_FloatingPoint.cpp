@@ -39,6 +39,7 @@ void Jit64::SetFPRFIfNeeded(RCX64Reg& reg)
     reg.ConvertTo(RCRepr::Canonical);
     SetFPRF(reg);
   }
+  reg.ConvertTo(RCRepr::Canonical);
 }
 
 void Jit64::HandleNaNs(UGeckoInstruction inst, X64Reg xmm_out, X64Reg xmm, X64Reg clobber)
@@ -176,7 +177,7 @@ void Jit64::fp_arith(UGeckoInstruction inst)
   if (inst.OPCD == 59 && (inst.SUBOP5 == 18 || cpu_info.bAtom))
     packed = false;
 
-  bool round_input = single && !js.op->fprIsSingle[inst.FC];
+  bool round_input = single;// && !js.op->fprIsSingle[inst.FC];
   bool preserve_inputs = SConfig::GetInstance().bAccurateNaNs;
 
   const auto fp_tri_op = [&](int op1, int op2, bool reversible,
@@ -210,6 +211,10 @@ void Jit64::fp_arith(UGeckoInstruction inst)
     if (single)
     {
       ForceSinglePrecision(Rd, Rd, packed, true);
+    }
+    else
+    {
+      Rd.SetRepr(RCRepr::Canonical);
     }
     SetFPRFIfNeeded(Rd);
   };
@@ -248,7 +253,7 @@ void Jit64::fmaddXX(UGeckoInstruction inst)
   int c = inst.FC;
   int d = inst.FD;
   bool single = inst.OPCD == 4 || inst.OPCD == 59;
-  bool round_input = single && !js.op->fprIsSingle[c];
+  bool round_input = single;// && !js.op->fprIsSingle[c];
   bool packed = inst.OPCD == 4 || (!cpu_info.bAtom && single && fpr.IsDupPhysical(a, b, c));
 
   // While we don't know if any games are actually affected (replays seem to work with all the usual
@@ -374,6 +379,7 @@ void Jit64::fmaddXX(UGeckoInstruction inst)
   {
     HandleNaNs(inst, XMM1, XMM1);
     MOVSD(Rd, R(XMM1));
+    Rd.SetRepr(RCRepr::Canonical);
   }
   SetFPRFIfNeeded(Rd);
 }
@@ -410,6 +416,7 @@ void Jit64::fsign(UGeckoInstruction inst)
     PanicAlert("fsign bleh");
     break;
   }
+  Rd.SetRepr(RCRepr::Canonical);
 }
 
 void Jit64::fselx(UGeckoInstruction inst)
@@ -457,6 +464,8 @@ void Jit64::fselx(UGeckoInstruction inst)
     MOVAPD(Rd, R(XMM1));
   else
     MOVSD(Rd, R(XMM1));
+
+  Rd.SetRepr(RCRepr::Canonical);
 }
 
 void Jit64::fmrx(UGeckoInstruction inst)
@@ -471,25 +480,16 @@ void Jit64::fmrx(UGeckoInstruction inst)
   if (d == b)
     return;
 
-  RCOpArg Rd = fpr.Use(d, RCMode::Write);
-  RegCache::Realize(Rd);
-  if (Rd.IsSimpleReg())
-  {
-    RCOpArg Rb = fpr.Use(b, RCMode::Read);
-    RegCache::Realize(Rb);
-    // We have to use MOVLPD if b isn't loaded because "MOVSD reg, mem" sets the upper bits (64+)
-    // to zero and we don't want that.
-    if (!Rb.IsSimpleReg())
-      MOVLPD(Rd.GetSimpleReg(), Rb);
-    else
-      MOVSD(Rd, Rb.GetSimpleReg());
-  }
+  RCX64Reg Rd = fpr.Bind(d, RCMode::ReadWrite);
+  RCOpArg Rb = fpr.Use(b, RCMode::Read);
+  RegCache::Realize(Rd, Rb);
+  // We have to use MOVLPD if b isn't loaded because "MOVSD reg, mem" sets the upper bits (64+)
+  // to zero and we don't want that.
+  if (!Rb.IsSimpleReg())
+    MOVLPD(Rd, Rb);
   else
-  {
-    RCOpArg Rb = fpr.Bind(b, RCMode::Read);
-    RegCache::Realize(Rb);
     MOVSD(Rd, Rb.GetSimpleReg());
-  }
+  Rd.SetRepr(RCRepr::Canonical);
 }
 
 void Jit64::FloatCompare(UGeckoInstruction inst, bool upper)
@@ -638,6 +638,8 @@ void Jit64::fctiwx(UGeckoInstruction inst)
   }
   // d[64+] must not be modified
   MOVSD(Rd, XMM0);
+
+  Rd.SetRepr(RCRepr::Canonical);
 }
 
 void Jit64::frspx(UGeckoInstruction inst)
@@ -649,9 +651,9 @@ void Jit64::frspx(UGeckoInstruction inst)
   int d = inst.FD;
   bool packed = fpr.IsDupPhysical(b) && !cpu_info.bAtom;
 
-  if (fpr.IsSingle(b))
+  /*if (fpr.IsSingle(b))
   {
-    RCOpArg Rb = fpr.Use(b, RCMode::Read, RCRepr::DupSingle);
+    RCOpArg Rb = fpr.Use(b, RCMode::Read, RCRepr::DupSingles);
     RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
     RegCache::Realize(Rb, Rd);
 
@@ -660,14 +662,14 @@ void Jit64::frspx(UGeckoInstruction inst)
     SetFPRFIfNeeded(Rd);
   }
   else
-  {
+  {*/
     RCOpArg Rb = fpr.Use(b, RCMode::Read);
     RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
     RegCache::Realize(Rb, Rd);
 
     ForceSinglePrecision(Rd, Rb, packed, true);
     SetFPRFIfNeeded(Rd);
-  }
+  //}
 }
 
 void Jit64::frsqrtex(UGeckoInstruction inst)
@@ -686,6 +688,7 @@ void Jit64::frsqrtex(UGeckoInstruction inst)
   MOVAPD(XMM0, Rb);
   CALL(asm_routines.frsqrte);
   MOVSD(Rd, XMM0);
+  Rd.SetRepr(RCRepr::Canonical);
   SetFPRFIfNeeded(Rd);
 }
 
