@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 #include "Common/Assert.h"
 #include "Common/CommonTypes.h"
@@ -12,6 +13,23 @@
 #include "Core/PowerPC/Jit64/RegCache/RCMode.h"
 
 using preg_t = size_t;
+
+/// Value representation
+enum class RCRepr
+{
+  /// Canonical representation
+  /// Integer: A simple integer
+  /// Float: A pair of doubles
+  Canonical,
+
+  // Float representations
+  /// Lower reg is same as upper one (note: physically upper is nonexistent)
+  Dup,
+  /// A pair of singles
+  PairSingles,
+  /// Lower reg is same as upper one as single
+  DupSingles,
+};
 
 class PPCCachedReg
 {
@@ -59,6 +77,7 @@ public:
 
   void SetBoundTo(Gen::X64Reg xreg)
   {
+    ASSERT(repr == RCRepr::Canonical);
     away = true;
     location = Gen::R(xreg);
   }
@@ -68,12 +87,14 @@ public:
     ASSERT(!revertable);
     away = false;
     location = default_location;
+    repr = RCRepr::Canonical;
   }
 
   void SetToImm32(u32 imm32, bool dirty = true)
   {
     away |= dirty;
     location = Gen::Imm32(imm32);
+    repr = RCRepr::Canonical;
   }
 
   bool IsRevertable() const { return revertable; }
@@ -102,12 +123,20 @@ public:
     locked--;
   }
 
+  RCRepr GetRepr() const { return repr; }
+  void SetRepr(RCRepr r)
+  {
+    ASSERT(IsLocked() && IsBound());
+    repr = r;
+  }
+
 private:
   Gen::OpArg default_location{};
   Gen::OpArg location{};
   bool away = false;  // value not in source register
   bool revertable = false;
   size_t locked = 0;
+  RCRepr repr = RCRepr::Canonical;
 };
 
 class X64CachedReg
@@ -155,7 +184,7 @@ public:
   bool IsRealized() const { return realized != RealizedLoc::Invalid; }
   bool IsActive() const
   {
-    return IsRealized() || write || read || kill_imm || kill_mem || revertable;
+    return IsRealized() || write || read || kill_imm || kill_mem || revertable || repr;
   }
 
   bool ShouldLoad() const { return read; }
@@ -163,6 +192,7 @@ public:
   bool ShouldBeRevertable() const { return revertable; }
   bool ShouldKillImmediate() const { return kill_imm; }
   bool ShouldKillMemory() const { return kill_mem; }
+  RCRepr RequiredRepr() const { return *repr; }
 
   enum class RealizedLoc
   {
@@ -186,20 +216,26 @@ public:
     Any,
   };
 
-  void AddUse(RCMode mode) { AddConstraint(mode, ConstraintLoc::Any, false); }
-  void AddUseNoImm(RCMode mode) { AddConstraint(mode, ConstraintLoc::BoundOrMem, false); }
-  void AddBindOrImm(RCMode mode) { AddConstraint(mode, ConstraintLoc::BoundOrImm, false); }
-  void AddBind(RCMode mode) { AddConstraint(mode, ConstraintLoc::Bound, false); }
-  void AddRevertableBind(RCMode mode) { AddConstraint(mode, ConstraintLoc::Bound, true); }
+  void AddUse(RCMode m, RCRepr r) { AddConstraint(m, ConstraintLoc::Any, false, r); }
+  void AddUseNoImm(RCMode m, RCRepr r) { AddConstraint(m, ConstraintLoc::BoundOrMem, false, r); }
+  void AddBindOrImm(RCMode m, RCRepr r) { AddConstraint(m, ConstraintLoc::BoundOrImm, false, r); }
+  void AddBind(RCMode m, RCRepr r) { AddConstraint(m, ConstraintLoc::Bound, false, r); }
+  void AddRevertableBind(RCMode m)
+  {
+    AddConstraint(m, ConstraintLoc::Bound, true, RCRepr::Canonical);
+  }
 
 private:
-  void AddConstraint(RCMode mode, ConstraintLoc loc, bool should_revertable)
+  void AddConstraint(RCMode mode, ConstraintLoc loc, bool should_revertable, RCRepr r)
   {
     if (IsRealized())
     {
-      ASSERT(IsCompatible(mode, loc, should_revertable));
+      ASSERT(IsCompatible(mode, loc, should_revertable, r));
       return;
     }
+
+    ASSERT(!repr || repr == r);
+    repr = r;
 
     if (should_revertable)
       revertable = true;
@@ -235,9 +271,14 @@ private:
     }
   }
 
-  bool IsCompatible(RCMode mode, ConstraintLoc loc, bool should_revertable) const
+  bool IsCompatible(RCMode mode, ConstraintLoc loc, bool should_revertable, RCRepr r) const
   {
     if (should_revertable && !revertable)
+    {
+      return false;
+    }
+
+    if (repr != r)
     {
       return false;
     }
@@ -281,4 +322,5 @@ private:
   bool kill_imm = false;
   bool kill_mem = false;
   bool revertable = false;
+  std::optional<RCRepr> repr;
 };

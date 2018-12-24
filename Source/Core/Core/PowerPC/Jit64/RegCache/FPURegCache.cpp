@@ -16,12 +16,101 @@ FPURegCache::FPURegCache(Jit64& jit) : RegCache{jit}
 
 void FPURegCache::StoreRegister(preg_t preg, const OpArg& new_loc)
 {
-  m_emitter->MOVAPD(new_loc, m_regs[preg].Location().GetSimpleReg());
+  switch (m_regs[preg].GetRepr())
+  {
+  case RCRepr::PairSingles:
+    m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+    [[fallthrough]];
+  case RCRepr::Canonical:
+    m_emitter->MOVAPD(new_loc, m_regs[preg].Location().GetSimpleReg());
+    break;
+  case RCRepr::DupSingles:
+    m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+    [[fallthrough]];
+  case RCRepr::Dup:
+    OpArg second = new_loc;
+    second.AddMemOffset(sizeof(double));
+
+    m_emitter->MOVSD(new_loc, m_regs[preg].Location().GetSimpleReg());
+    m_emitter->MOVSD(second, m_regs[preg].Location().GetSimpleReg());
+    break;
+  }
+  m_regs[preg].SetRepr(RCRepr::Canonical);
 }
 
 void FPURegCache::LoadRegister(preg_t preg, X64Reg new_loc)
 {
   m_emitter->MOVAPD(new_loc, m_regs[preg].Location());
+}
+
+void FPURegCache::ConvertRegister(preg_t preg, RCRepr new_repr)
+{
+  switch (new_repr)
+  {
+  case RCRepr::Canonical:
+    switch (m_regs[preg].GetRepr())
+    {
+    case RCRepr::Canonical:
+      // No conversion required.
+      break;
+    case RCRepr::Dup:
+      m_emitter->MOVDDUP(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      break;
+    case RCRepr::PairSingles:
+      m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      break;
+    case RCRepr::DupSingles:
+      m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      m_emitter->MOVDDUP(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      break;
+    }
+    m_regs[preg].SetRepr(RCRepr::Canonical);
+    break;
+  case RCRepr::Dup:
+    switch (m_regs[preg].GetRepr())
+    {
+    case RCRepr::Canonical:
+    case RCRepr::Dup:
+      // No conversion required.
+      break;
+    case RCRepr::PairSingles:
+      m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      m_regs[preg].SetRepr(RCRepr::Canonical);
+      break;
+    case RCRepr::DupSingles:
+      m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      m_regs[preg].SetRepr(RCRepr::Dup);
+      break;
+    }
+    break;
+  case RCRepr::PairSingles:
+    switch (m_regs[preg].GetRepr())
+    {
+    case RCRepr::Canonical:
+    case RCRepr::Dup:
+      ASSERT_MSG(DYNA_REC, false, "Lossy conversion not allowed");
+      break;
+    case RCRepr::PairSingles:
+      // No conversion required
+      break;
+    case RCRepr::DupSingles:
+      m_emitter->MOVSLDUP(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
+      m_regs[preg].SetRepr(RCRepr::PairSingles);
+      break;
+    }
+  case RCRepr::DupSingles:
+    switch (m_regs[preg].GetRepr())
+    {
+    case RCRepr::Canonical:
+    case RCRepr::Dup:
+      ASSERT_MSG(DYNA_REC, false, "Lossy conversion not allowed");
+      break;
+    case RCRepr::PairSingles:
+    case RCRepr::DupSingles:
+      // No conversion required
+      break;
+    }
+  }
 }
 
 const X64Reg* FPURegCache::GetAllocationOrder(size_t* count) const
