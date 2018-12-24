@@ -36,7 +36,7 @@ void Jit64::SetFPRFIfNeeded(RCX64Reg& reg)
   // if the FPRF flag is set.
   if (SConfig::GetInstance().bFPRF && js.op->wantsFPRF)
   {
-    reg.ConvertTo(RCRepr::Canonical);
+    reg.ConvertTo(RCRepr::Dup);
     SetFPRF(reg);
   }
 }
@@ -169,7 +169,7 @@ void Jit64::fp_arith(UGeckoInstruction inst)
   // If both the inputs are known to have identical top and bottom halves, we can skip the MOVDDUP
   // at the end by
   // using packed arithmetic instead.
-  bool packed = inst.OPCD == 4 || (inst.OPCD == 59 && fpr.IsDupPhysical(a, arg2));
+  bool packed = inst.OPCD == 4;
   // Packed divides are slower than scalar divides on basically all x86, so this optimization isn't
   // worth it in that case.
   // Atoms (and a few really old CPUs) are also slower on packed operations than scalar ones.
@@ -250,7 +250,7 @@ void Jit64::fmaddXX(UGeckoInstruction inst)
   int d = inst.FD;
   bool single = inst.OPCD == 4 || inst.OPCD == 59;
   bool round_input = single;// && !js.op->fprIsSingle[c];
-  bool packed = inst.OPCD == 4 || (!cpu_info.bAtom && single && fpr.IsDupPhysical(a, b, c));
+  bool packed = inst.OPCD == 4;
 
   // While we don't know if any games are actually affected (replays seem to work with all the usual
   // suspects for desyncing), netplay and other applications need absolute perfect determinism, so
@@ -645,7 +645,7 @@ void Jit64::frspx(UGeckoInstruction inst)
   FALLBACK_IF(inst.Rc);
   int b = inst.FB;
   int d = inst.FD;
-  bool packed = fpr.IsDupPhysical(b) && !cpu_info.bAtom;
+  bool packed = false;//fpr.IsDupPhysical(b) && !cpu_info.bAtom;
 
   RCOpArg Rb = fpr.Use(b, RCMode::Read);
   RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
