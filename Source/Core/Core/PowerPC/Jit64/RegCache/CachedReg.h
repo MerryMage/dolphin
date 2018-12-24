@@ -258,9 +258,6 @@ private:
       return;
     }
 
-    ASSERT(!repr || repr == r);
-    repr = r;
-
     if (should_revertable)
       revertable = true;
 
@@ -283,12 +280,17 @@ private:
     switch (mode)
     {
     case RCMode::Read:
+      ASSERT(!repr || repr == r);
+      repr = r;
       read = true;
       break;
     case RCMode::Write:
+      ASSERT(r == RCRepr::Canonical);
       write = true;
       break;
     case RCMode::ReadWrite:
+      ASSERT(!repr || repr == r);
+      repr = r;
       read = true;
       write = true;
       break;

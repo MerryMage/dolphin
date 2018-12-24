@@ -13,6 +13,8 @@ class FPURegCache final : public RegCache
 public:
   explicit FPURegCache(Jit64& jit);
 
+  RCRepr GetRepr() const { return m_regs[pregs].GetRepr(); }
+
   template <typename... Args>
   bool IsSingle(Args... pregs) const
   {

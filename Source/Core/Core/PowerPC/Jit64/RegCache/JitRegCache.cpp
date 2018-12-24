@@ -522,9 +522,9 @@ void RegCache::BindToRegister(preg_t i, bool doLoad, bool makeDirty, RCRepr repr
   if (doLoad && repr != m_regs[i].GetRepr())
   {
     ConvertRegister(i, repr);
-    if (makeDirty)
-      m_regs[i].SetRepr(repr);
   }
+  if (makeDirty)
+    m_regs[i].SetRepr(repr);
 
   ASSERT_MSG(DYNA_REC, !m_xregs[RX(i)].IsLocked(), "WTF, this reg should have been flushed");
 }
