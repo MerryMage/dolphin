@@ -206,7 +206,7 @@ void Jit64::fp_arith(UGeckoInstruction inst)
     HandleNaNs(inst, Rd, dest);
     if (single)
     {
-      ForceSinglePrecision(Rd, Rd, packed, true);
+      ForceSinglePrecision(Rd, packed, true);
     }
     SetFPRFIfNeeded(Rd);
   };
@@ -365,7 +365,7 @@ void Jit64::fmaddXX(UGeckoInstruction inst)
   if (single)
   {
     HandleNaNs(inst, Rd, XMM1);
-    ForceSinglePrecision(Rd, Rd, packed, true);
+    ForceSinglePrecision(Rd, packed, true);
   }
   else
   {

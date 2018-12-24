@@ -721,6 +721,29 @@ void EmuCodeBlock::JitClearCA()
   MOV(8, PPCSTATE(xer_ca), Imm8(0));
 }
 
+void EmuCodeBlock::ForceSinglePrecision(RCX64Reg& reg, bool packed, bool duplicate)
+{
+  // Most games don't need these. Zelda requires it though - some platforms get stuck without them.
+  if (g_jit->jo.accurateSinglePrecision)
+  {
+    if (packed)
+    {
+      CVTPD2PS(reg, reg);
+      CVTPS2PD(reg, reg);
+    }
+    else
+    {
+      CVTSD2SS(reg, reg);
+      CVTSS2SD(reg, reg);
+      if (duplicate)
+      {
+        MOVDDUP(reg, reg);
+        reg.SetRepr(RCRepr::DupPhysical);
+      }
+    }
+  }
+}
+
 void EmuCodeBlock::ForceSinglePrecision(RCX64Reg& out, RCOpArg& in, bool packed, bool duplicate)
 {
   // Most games don't need these. Zelda requires it though - some platforms get stuck without them.
