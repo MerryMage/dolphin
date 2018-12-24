@@ -649,12 +649,25 @@ void Jit64::frspx(UGeckoInstruction inst)
   int d = inst.FD;
   bool packed = fpr.IsDupPhysical(b) && !cpu_info.bAtom;
 
-  RCOpArg Rb = fpr.Use(b, RCMode::Read);
-  RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
-  RegCache::Realize(Rb, Rd);
+  if (fpr.IsSingle(b))
+  {
+    RCOpArg Rb = fpr.Use(b, RCMode::Read, RCRepr::DupSingle);
+    RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
+    RegCache::Realize(Rb, Rd);
 
-  ForceSinglePrecision(Rd, Rb, packed, true);
-  SetFPRFIfNeeded(Rd);
+    MOVAPD(Rd, Rb);
+    Rd.SetRepr(RCRepr::DupSingles);
+    SetFPRFIfNeeded(Rd);
+  }
+  else
+  {
+    RCOpArg Rb = fpr.Use(b, RCMode::Read);
+    RCX64Reg Rd = fpr.Bind(d, RCMode::Write);
+    RegCache::Realize(Rb, Rd);
+
+    ForceSinglePrecision(Rd, Rb, packed, true);
+    SetFPRFIfNeeded(Rd);
+  }
 }
 
 void Jit64::frsqrtex(UGeckoInstruction inst)
