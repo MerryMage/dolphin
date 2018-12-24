@@ -189,7 +189,7 @@ protected:
   virtual Gen::OpArg GetDefaultLocation(preg_t preg) const = 0;
   virtual void StoreRegister(preg_t preg, const Gen::OpArg& new_loc) = 0;
   virtual void LoadRegister(preg_t preg, Gen::X64Reg new_loc) = 0;
-  virtual void ConvertRegister(preg_t preg, RCRepr new_repr) = 0;
+  virtual void ConvertRegister(preg_t preg, RCRepr requested_repr) = 0;
 
   virtual const Gen::X64Reg* GetAllocationOrder(size_t* count) const = 0;
 

@@ -59,68 +59,59 @@ void FPURegCache::LoadRegister(preg_t preg, X64Reg new_loc)
   m_emitter->MOVAPD(new_loc, m_regs[preg].Location());
 }
 
-void FPURegCache::ConvertRegister(preg_t preg, RCRepr new_repr)
+RCRepr FPURegCache::Convert(Gen::X64Reg reg, RCRepr old_repr, RCRepr requested_repr)
 {
-  switch (new_repr)
+  switch (requested_repr)
   {
   case RCRepr::Canonical:
-    switch (m_regs[preg].GetRepr())
+    switch (old_repr)
     {
     case RCRepr::Canonical:
     case RCRepr::DupPhysical:
       // No conversion required.
-      break;
+      return old_repr;
     case RCRepr::Dup:
-      m_emitter->MOVDDUP(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::DupPhysical);
-      break;
+      m_emitter->MOVDDUP(reg, ::Gen::R(reg));
+      return RCRepr::DupPhysical;
     case RCRepr::PairSingles:
-      m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::Canonical);
-      break;
+      m_emitter->CVTPS2PD(reg, ::Gen::R(reg));
+      return RCRepr::Canonical;
     case RCRepr::DupPhysicalSingles:
-      m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::DupPhysical);
-      break;
+      m_emitter->CVTPS2PD(reg, ::Gen::R(reg));
+      return RCRepr::DupPhysical;
     case RCRepr::DupSingles:
-      m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_emitter->MOVDDUP(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::DupPhysical);
-      break;
+      m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
+      m_emitter->MOVDDUP(reg, ::Gen::R(reg));
+      return RCRepr::DupPhysical;
     case RCRepr::DoubleSingle:
-      m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::Canonical);
-      break;
+      m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
+      return RCRepr::Canonical;
     }
     break;
   case RCRepr::Dup:
-    switch (m_regs[preg].GetRepr())
+    switch (old_repr)
     {
     case RCRepr::Canonical:
     case RCRepr::Dup:
     case RCRepr::DupPhysical:
       // No conversion required.
-      break;
+      return old_repr;
     case RCRepr::PairSingles:
-      m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::Canonical);
-      break;
+      m_emitter->CVTPS2PD(reg, ::Gen::R(reg));
+      return RCRepr::Canonical;
     case RCRepr::DupPhysicalSingles:
-      m_emitter->CVTPS2PD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::DupPhysical);
-      break;
+      m_emitter->CVTPS2PD(reg, ::Gen::R(reg));
+      return RCRepr::DupPhysical;
     case RCRepr::DupSingles:
-      m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::Dup);
-      break;
+      m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
+      return RCRepr::Dup;
     case RCRepr::DoubleSingle:
-      m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::Canonical);
-      break;
+      m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
+      return RCRepr::Canonical;
     }
     break;
   case RCRepr::PairSingles:
-    switch (m_regs[preg].GetRepr())
+    switch (old_repr)
     {
     case RCRepr::Canonical:
     case RCRepr::Dup:
@@ -131,14 +122,13 @@ void FPURegCache::ConvertRegister(preg_t preg, RCRepr new_repr)
     case RCRepr::PairSingles:
     case RCRepr::DupPhysicalSingles:
       // No conversion required
-      break;
+      return old_repr;
     case RCRepr::DupSingles:
-      m_emitter->MOVSLDUP(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-      m_regs[preg].SetRepr(RCRepr::DupPhysicalSingles);
-      break;
+      m_emitter->MOVSLDUP(reg, ::Gen::R(reg));
+      return RCRepr::DupPhysicalSingles;
     }
   case RCRepr::DupSingles:
-    switch (m_regs[preg].GetRepr())
+    switch (old_repr)
     {
     case RCRepr::Canonical:
     case RCRepr::Dup:
@@ -150,7 +140,7 @@ void FPURegCache::ConvertRegister(preg_t preg, RCRepr new_repr)
     case RCRepr::DupPhysicalSingles:
     case RCRepr::DoubleSingle:
       // No conversion required
-      break;
+      return old_repr;
     }
   case RCRepr::DoubleSingle:
   case RCRepr::DupPhysical:
@@ -158,6 +148,14 @@ void FPURegCache::ConvertRegister(preg_t preg, RCRepr new_repr)
     ASSERT_MSG(DYNA_REC, false, "Cannot request direct conversion to these representations");
     break;
   }
+  ASSERT_MSG(DYNA_REC, false, "Unreachable");
+}
+
+void FPURegCache::ConvertRegister(preg_t preg, RCRepr requested_repr)
+{
+  const Gen::X64Reg xr = m_regs[preg].Location().GetSimpleReg();
+  const RCRepr new_repr = Convert(xr, m_regs[preg].GetRepr(), requested_repr);
+  m_regs[preg].SetRepr(new_repr);
 }
 
 const X64Reg* FPURegCache::GetAllocationOrder(size_t* count) const
