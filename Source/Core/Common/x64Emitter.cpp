@@ -2823,6 +2823,38 @@ void XEmitter::PSHUFHW(X64Reg regOp, const OpArg& arg, u8 shuffle)
 }
 
 // VEX
+void XEmitter::VADDSS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0xF3, sseADD, regOp1, regOp2, arg);
+}
+void XEmitter::VSUBSS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0xF3, sseSUB, regOp1, regOp2, arg);
+}
+void XEmitter::VMULSS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0xF3, sseMUL, regOp1, regOp2, arg);
+}
+void XEmitter::VDIVSS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0xF3, sseDIV, regOp1, regOp2, arg);
+}
+void XEmitter::VADDPS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0x00, sseADD, regOp1, regOp2, arg);
+}
+void XEmitter::VSUBPS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0x00, sseSUB, regOp1, regOp2, arg);
+}
+void XEmitter::VMULPS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0x00, sseMUL, regOp1, regOp2, arg);
+}
+void XEmitter::VDIVPS(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
+{
+  WriteAVXOp(0x00, sseDIV, regOp1, regOp2, arg);
+}
 void XEmitter::VADDSD(X64Reg regOp1, X64Reg regOp2, const OpArg& arg)
 {
   WriteAVXOp(0xF2, sseADD, regOp1, regOp2, arg);
