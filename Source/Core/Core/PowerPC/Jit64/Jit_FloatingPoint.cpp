@@ -577,7 +577,8 @@ void Jit64::fselx(UGeckoInstruction inst)
         MOVSD(Rd, R(XMM1));
     }
 
-    Rd.SetRepr(RCRepr::Canonical);
+    bool result_rounded = fpr.IsRounded(b, c) && (packed || fpr.IsRounded(d));
+    Rd.SetRepr(result_rounded ? RCRepr::PairRounded : RCRepr::Canonical);
   }
 }
 
