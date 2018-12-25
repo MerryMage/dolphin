@@ -731,8 +731,9 @@ void EmuCodeBlock::ForceSinglePrecision(RCX64Reg& out, const Gen::OpArg& in, boo
   }
   else
   {
+    ASSERT(duplicate);
     CVTSD2SS(out, in);
-    out.SetRepr(duplicate ? RCRepr::DupSingles : RCRepr::DoubleSingle);
+    out.SetRepr(RCRepr::DupSingles);
   }
 }
 

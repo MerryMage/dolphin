@@ -44,11 +44,6 @@ void FPURegCache::StoreRegister(preg_t preg, const OpArg& new_loc)
     m_emitter->MOVAPD(new_loc, m_regs[preg].Location().GetSimpleReg());
     m_regs[preg].SetRepr(RCRepr::DupPhysical);
     break;
-  case RCRepr::DoubleSingle:
-    m_emitter->CVTSS2SD(m_regs[preg].Location().GetSimpleReg(), m_regs[preg].Location());
-    m_emitter->MOVAPD(new_loc, m_regs[preg].Location().GetSimpleReg());
-    m_regs[preg].SetRepr(RCRepr::Canonical);
-    break;
   }
 }
 
@@ -83,9 +78,6 @@ RCRepr FPURegCache::Convert(Gen::X64Reg reg, RCRepr old_repr, RCRepr requested_r
       m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
       m_emitter->MOVDDUP(reg, ::Gen::R(reg));
       return RCRepr::DupPhysical;
-    case RCRepr::DoubleSingle:
-      m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
-      return RCRepr::Canonical;
     }
     break;
   case RCRepr::Dup:
@@ -105,9 +97,6 @@ RCRepr FPURegCache::Convert(Gen::X64Reg reg, RCRepr old_repr, RCRepr requested_r
     case RCRepr::DupSingles:
       m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
       return RCRepr::Dup;
-    case RCRepr::DoubleSingle:
-      m_emitter->CVTSS2SD(reg, ::Gen::R(reg));
-      return RCRepr::Canonical;
     }
     break;
   case RCRepr::PairSingles:
@@ -116,7 +105,6 @@ RCRepr FPURegCache::Convert(Gen::X64Reg reg, RCRepr old_repr, RCRepr requested_r
     case RCRepr::Canonical:
     case RCRepr::Dup:
     case RCRepr::DupPhysical:
-    case RCRepr::DoubleSingle:
       ASSERT_MSG(DYNA_REC, false, "Lossy conversion not allowed");
       break;
     case RCRepr::PairSingles:
@@ -138,17 +126,16 @@ RCRepr FPURegCache::Convert(Gen::X64Reg reg, RCRepr old_repr, RCRepr requested_r
     case RCRepr::PairSingles:
     case RCRepr::DupSingles:
     case RCRepr::DupPhysicalSingles:
-    case RCRepr::DoubleSingle:
       // No conversion required
       return old_repr;
     }
-  case RCRepr::DoubleSingle:
   case RCRepr::DupPhysical:
   case RCRepr::DupPhysicalSingles:
     ASSERT_MSG(DYNA_REC, false, "Cannot request direct conversion to these representations");
     break;
   }
   ASSERT_MSG(DYNA_REC, false, "Unreachable");
+  return old_repr;
 }
 
 void FPURegCache::ConvertRegister(preg_t preg, RCRepr requested_repr)

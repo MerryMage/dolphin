@@ -44,7 +44,7 @@ void Jit64::ps_sum(UGeckoInstruction inst)
   ASSERT(inst.SUBOP5 == 10 || inst.SUBOP5 == 11);
   const bool sum0 = inst.SUBOP5 == 10;
 
-  if (fpr.IsSingles(a, b, c))
+  if (fpr.IsSingle(a, b, c))
   {
     RCX64Reg Ra = fpr.Bind(a, RCMode::Read, sum0 ? RCRepr::LowerSingle : RCRepr::PairSingles);
     RCX64Reg Rb = fpr.Bind(b, RCMode::Read, RCRepr::PairSingles);
