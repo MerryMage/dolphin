@@ -340,7 +340,7 @@ private:
       read = true;
       break;
     case RCMode::Write:
-      ASSERT(r == RCRepr::Canonical);
+      // ignore r parameter
       write = true;
       break;
     case RCMode::ReadWrite:
