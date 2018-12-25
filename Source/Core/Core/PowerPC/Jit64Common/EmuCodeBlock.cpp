@@ -867,6 +867,41 @@ void EmuCodeBlock::avx_dop(void (XEmitter::*avxOp)(X64Reg, X64Reg, const OpArg&,
   }
 }
 
+// Abstract between AVX and SSE: automatically handle 3-operand instructions
+void EmuCodeBlock::avx_sop(void (XEmitter::*avxOp)(X64Reg, X64Reg, const OpArg&, u8),
+                           void (XEmitter::*sseOp)(X64Reg, const OpArg&, u8), X64Reg regOp,
+                           const OpArg& arg1, const OpArg& arg2, u8 imm)
+{
+  if (arg1.IsSimpleReg(regOp))
+  {
+    (this->*sseOp)(regOp, arg2, imm);
+  }
+  else if (arg1.IsSimpleReg() && cpu_info.bAVX)
+  {
+    (this->*avxOp)(regOp, arg1.GetSimpleReg(), arg2, imm);
+  }
+  else if (arg2.IsSimpleReg(regOp))
+  {
+    // The ugly case: regOp == arg2 without AVX, or with arg1 == memory
+    if (!arg1.IsSimpleReg(XMM0))
+      MOVAPS(XMM0, arg1);
+    if (cpu_info.bAVX)
+    {
+      (this->*avxOp)(regOp, XMM0, arg2, imm);
+    }
+    else
+    {
+      (this->*sseOp)(XMM0, arg2, imm);
+      MOVAPS(regOp, R(XMM0));
+    }
+  }
+  else
+  {
+    MOVAPS(regOp, arg1);
+    (this->*sseOp)(regOp, arg1 == arg2 ? R(regOp) : arg2, imm);
+  }
+}
+
 alignas(16) static const u64 psMantissaTruncate[2] = {0xFFFFFFFFF8000000ULL, 0xFFFFFFFFF8000000ULL};
 alignas(16) static const u64 psRoundBit[2] = {0x8000000, 0x8000000};
 

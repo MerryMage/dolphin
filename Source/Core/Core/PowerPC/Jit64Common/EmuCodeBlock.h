@@ -117,6 +117,9 @@ public:
                void (Gen::XEmitter::*sseOp)(Gen::X64Reg, const Gen::OpArg&), Gen::X64Reg regOp,
                const Gen::OpArg& arg1, const Gen::OpArg& arg2, bool packed = true,
                bool reversible = false);
+  void avx_sop(void (Gen::XEmitter::*avxOp)(Gen::X64Reg, Gen::X64Reg, const Gen::OpArg&, u8),
+               void (Gen::XEmitter::*sseOp)(Gen::X64Reg, const Gen::OpArg&, u8), Gen::X64Reg regOp,
+               const Gen::OpArg& arg1, const Gen::OpArg& arg2, u8 imm);
   void avx_dop(void (Gen::XEmitter::*avxOp)(Gen::X64Reg, Gen::X64Reg, const Gen::OpArg&, u8),
                void (Gen::XEmitter::*sseOp)(Gen::X64Reg, const Gen::OpArg&, u8), Gen::X64Reg regOp,
                const Gen::OpArg& arg1, const Gen::OpArg& arg2, u8 imm);
