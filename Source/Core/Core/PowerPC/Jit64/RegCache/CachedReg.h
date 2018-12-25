@@ -62,6 +62,11 @@ inline bool IsRCReprAnyDup(RCRepr repr)
   return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b1100;
 }
 
+inline bool IsRCReprDup(RCRepr repr)
+{
+  return (static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b1100) == 0b0100;
+}
+
 inline bool IsRCReprDupPhysical(RCRepr repr)
 {
   return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b1000;

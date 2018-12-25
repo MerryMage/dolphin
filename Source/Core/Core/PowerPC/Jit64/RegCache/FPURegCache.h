@@ -23,10 +23,24 @@ public:
   }
 
   template <typename... Args>
+  bool IsRounded(Args... pregs) const
+  {
+    static_assert(sizeof...(pregs) > 0);
+    return (IsRCReprRounded(m_regs[pregs].GetRepr()) && ...);
+  }
+
+  template <typename... Args>
   bool IsAnyDup(Args... pregs) const
   {
     static_assert(sizeof...(pregs) > 0);
     return (IsRCReprAnyDup(m_regs[pregs].GetRepr()) && ...);
+  }
+
+  template <typename... Args>
+  bool IsDup(Args... pregs) const
+  {
+    static_assert(sizeof...(pregs) > 0);
+    return (IsRCReprDup(m_regs[pregs].GetRepr()) && ...);
   }
 
   template <typename... Args>
