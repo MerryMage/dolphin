@@ -16,6 +16,10 @@
 using preg_t = size_t;
 
 /// Value representation
+/// bit 0: Is Single?
+/// bit 1: Is Rounded?
+/// Bit 2: Does only lower value exist physically?
+/// Bit 3: Is value physically duplicated?
 enum class RCRepr
 {
   /// Canonical representation
@@ -24,16 +28,23 @@ enum class RCRepr
   Canonical = 0b0000,
 
   // Float representations
+
   /// A pair of singles
   PairSingles = 0b0001,
+  /// A pair of doubles that have been rounded to single precision
+  PairRounded = 0b0010,
   /// Lower reg is same as upper one (note: physically upper is nonexistent)
-  Dup = 0b0010,
+  Dup = 0b0100,
   /// Lower reg is same as upper one as single (only lower exists)
-  DupSingles = 0b0011,
+  DupSingles = 0b0101,
+  /// Lower reg is same as upper one as rounded (only lower exists)
+  DupRounded = 0b0110,
   /// Lower reg is same as upper one (and both physically exist)
-  DupPhysical = 0b0100,
+  DupPhysical = 0b1000,
   /// Lower reg is same as upper one as single (and both exist)
-  DupPhysicalSingles = 0b0101,
+  DupPhysicalSingles = 0b1001,
+  /// Lower reg is same as upper one as rounded (and both exist)
+  DupPhysicalRounded = 0b1010,
 
   /// Used when requesting representations
   LowerSingle = DupSingles,
@@ -48,17 +59,25 @@ inline bool IsRCReprSingle(RCRepr repr)
 
 inline bool IsRCReprAnyDup(RCRepr repr)
 {
-  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b0110;
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b1100;
 }
 
 inline bool IsRCReprDupPhysical(RCRepr repr)
 {
-  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b0100;
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b1000;
+}
+
+inline bool IsRCReprRounded(RCRepr repr)
+{
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b0010;
 }
 
 inline bool IsRCReprCanonicalCompatible(RCRepr repr)
 {
-  return repr == RCRepr::Canonical || repr == RCRepr::DupPhysical;
+  return repr == RCRepr::Canonical ||
+         repr == RCRepr::PairRounded ||
+         repr == RCRepr::DupPhysical ||
+         repr == RCRepr::DupPhysicalRounded;
 }
 
 inline bool IsRCReprRequestable(RCRepr repr)
@@ -70,8 +89,11 @@ inline bool IsRCReprRequestable(RCRepr repr)
   case RCRepr::Dup:
   case RCRepr::DupSingles:
     return true;
+  case RCRepr::PairRounded:
+  case RCRepr::DupRounded:
   case RCRepr::DupPhysical:
   case RCRepr::DupPhysicalSingles:
+  case RCRepr::DupPhysicalRounded:
     return false;
   }
   return false;
