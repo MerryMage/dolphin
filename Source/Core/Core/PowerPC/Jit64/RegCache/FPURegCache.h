@@ -16,10 +16,17 @@ public:
   RCRepr GetRepr(preg_t preg) const { return m_regs[preg].GetRepr(); }
 
   template <typename... Args>
-  bool IsSingle(Args... pregs) const
+  bool IsSingles(Args... pregs) const
   {
     static_assert(sizeof...(pregs) > 0);
-    return (IsRCReprSingle(m_regs[pregs].GetRepr()) && ...);
+    return (IsRCReprSingles(m_regs[pregs].GetRepr()) && ...);
+  }
+
+  template <typename... Args>
+  bool IsLowerSingle(Args... pregs) const
+  {
+    static_assert(sizeof...(pregs) > 0);
+    return (IsRCReprLowerSingle(m_regs[pregs].GetRepr()) && ...);
   }
 
   template <typename... Args>

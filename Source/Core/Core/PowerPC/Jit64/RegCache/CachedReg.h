@@ -36,21 +36,31 @@ enum class RCRepr
   DupPhysicalSingles = 0b0101,
   /// Lower reg is single, upper reg is double
   DoubleSingle = 0b1001,
+
+  /// Used when requesting representations
+  LowerSingle = DupSingles,
+  /// Used when requesting representations
+  LowerDouble = Dup,
 };
 
-inline bool IsRCReprSingle(RCRepr repr)
+inline bool IsRCReprLowerSingle(RCRepr repr)
 {
-  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b001;
+  return !!(static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b0001);
+}
+
+inline bool IsRCReprSingles(RCRepr repr)
+{
+  return IsRCReprLowerSingle(repr) && repr != RCRepr::DoubleSingle;
 }
 
 inline bool IsRCReprAnyDup(RCRepr repr)
 {
-  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b110;
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b0110;
 }
 
 inline bool IsRCReprDupPhysical(RCRepr repr)
 {
-  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b100;
+  return static_cast<std::underlying_type_t<RCRepr>>(repr) & 0b0100;
 }
 
 inline bool IsRCReprCanonicalCompatible(RCRepr repr)
@@ -273,7 +283,7 @@ private:
   {
     if (!r2)
       return r1;
-    ASSERT(IsRCReprSingle(r1) == IsRCReprSingle(*r2));
+    ASSERT(IsRCReprLowerSingle(r1) == IsRCReprLowerSingle(*r2));
     return IsRCReprAnyDup(r1) ? *r2 : r1;
   }
 
