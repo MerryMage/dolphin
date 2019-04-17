@@ -33,7 +33,6 @@ struct CodeOp  // 16B
   BitSet32 regsIn;
   BitSet32 fregsIn;
   s8 fregOut;
-  bool isBranchTarget;
   bool wantsCR0;
   bool wantsCR1;
   bool wantsFPRF;

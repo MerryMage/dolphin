@@ -36,8 +36,6 @@ bool JitBase::CanMergeNextInstructions(int count) const
     if (SConfig::GetInstance().bEnableDebugging &&
         PowerPC::breakpoints.IsAddressBreakPoint(js.op[i].address))
       return false;
-    if (js.op[i].isBranchTarget)
-      return false;
   }
   return true;
 }
