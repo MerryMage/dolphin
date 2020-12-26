@@ -1665,6 +1665,11 @@ void Jit64::rlwimix(UGeckoInstruction inst)
   {
     needs_test = true;
   }
+  else if (gpr.IsImm(s) && mask == 0xFFFFFFFF)
+  {
+    gpr.SetImmediate32(a, Common::RotateLeft(gpr.Imm32(s), inst.SH));
+    needs_test = true;
+  }
   else if (mask == 0xFFFFFFFF)
   {
     RCOpArg Rs = gpr.Use(s, RCMode::Read);
