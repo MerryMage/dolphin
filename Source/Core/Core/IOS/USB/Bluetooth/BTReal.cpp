@@ -546,8 +546,8 @@ void BluetoothReal::SaveLinkKeys()
     oss << Common::MacAddressToString(address);
     oss << '=';
     oss << std::hex;
-    for (const u16& data : entry.second)
-      oss << std::setfill('0') << std::setw(2) << data;
+    for (const u8 data : entry.second)
+      oss << std::setfill('0') << std::setw(2) << (unsigned)data;
     oss << std::dec << ',';
   }
   std::string config_string = oss.str();
